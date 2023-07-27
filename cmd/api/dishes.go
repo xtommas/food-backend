@@ -9,11 +9,11 @@ import (
 
 func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Name        string   `json:"name"`
-		Price       float64  `json:"price"`
-		Description string   `json:"description"`
-		Category    []string `json:"category"`
-		Photo       string   `json:"photo"`
+		Name        string     `json:"name"`
+		Price       data.Price `json:"price"`
+		Description string     `json:"description"`
+		Category    []string   `json:"category"`
+		Photo       string     `json:"photo"`
 	}
 
 	err := app.readJSON(w, r, &input)
