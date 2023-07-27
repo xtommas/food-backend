@@ -14,7 +14,7 @@ func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request
 func (app *application) showDishHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := app.readIdParam(r)
 	if err != nil {
-		http.NotFound(w, r)
+		app.notFoundResponse(w, r)
 		return
 	}
 
@@ -27,9 +27,8 @@ func (app *application) showDishHandler(w http.ResponseWriter, r *http.Request) 
 		Photo:       "",
 	}
 
-	err = app.writeJSON(w, http.StatusOK, dish, nil)
+	err = app.writeJSON(w, http.StatusOK, envelope{"dish": dish}, nil)
 	if err != nil {
-		app.logger.Println(err)
-		http.Error(w, "The server encountered a problem and could not process your request", http.StatusInternalServerError)
+		app.serverErrorResponse(w, r, err)
 	}
 }
