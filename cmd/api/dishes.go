@@ -8,7 +8,21 @@ import (
 )
 
 func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "create a new dish")
+	var input struct {
+		Name        string   `json:"name"`
+		Price       float64  `json:"price"`
+		Description string   `json:"description"`
+		Category    []string `json:"category"`
+		Photo       string   `json:"photo"`
+	}
+
+	err := app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	fmt.Fprintf(w, "%+v\n", input)
 }
 
 func (app *application) showDishHandler(w http.ResponseWriter, r *http.Request) {
