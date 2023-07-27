@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/xtommas/food-backend/internal/data"
+	"github.com/xtommas/food-backend/internal/validator"
 )
 
 func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request) {
@@ -19,6 +20,21 @@ func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request
 	err := app.readJSON(w, r, &input)
 	if err != nil {
 		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	dish := &data.Dish{
+		Name:        input.Name,
+		Price:       input.Price,
+		Description: input.Description,
+		Category:    input.Category,
+		Photo:       input.Photo,
+	}
+
+	v := validator.New()
+
+	if data.ValidateDish(v, dish); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
