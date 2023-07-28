@@ -29,4 +29,6 @@ func ValidateDish(v *validator.Validator, dish *Dish) {
 	v.Check(len(dish.Category) >= 1, "category", "must contain at least one category")
 	v.Check(len(dish.Category) <= 5, "category", "must not contain more than 5 categories")
 	v.Check(validator.Unique(dish.Category), "category", "must not contain duplicate values")
+
+	// Add photo validation and require it to be provided in the request, when I figure that out
 }

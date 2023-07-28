@@ -1,0 +1,9 @@
+-- psql -U postgres
+
+CREATE DATABASE food;
+
+CREATE ROLE food WITH LOGIN PASSWORD 'yourpassword';
+
+CREATE EXTENSION IF NOT EXISTS citext;
+
+ALTER DATABASE food OWNER TO food;
