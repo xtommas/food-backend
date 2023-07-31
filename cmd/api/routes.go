@@ -15,7 +15,7 @@ func (app *application) routes() *httprouter.Router {
 	router.HandlerFunc(http.MethodGet, "/healthcheck", app.healthcheckHandler)
 	router.HandlerFunc(http.MethodPost, "/dishes", app.createDishHandler)
 	router.HandlerFunc(http.MethodGet, "/dishes/:id", app.showDishHandler)
-	router.HandlerFunc(http.MethodPut, "/dishes/:id", app.updateDishHandler)
+	router.HandlerFunc(http.MethodPatch, "/dishes/:id", app.updateDishHandler)
 	router.HandlerFunc(http.MethodDelete, "/dishes/:id", app.deleteDishHandler)
 
 	return router
