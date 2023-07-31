@@ -99,6 +99,44 @@ func (d DishModel) Get(id int64) (*Dish, error) {
 }
 
 func (d DishModel) Update(dish *Dish) error {
+	query := `
+		UPDATE dishes
+		SET name = $1, price = $2, description = $3, category = $4, photo = $5, available = $6
+		WHERE id = $7`
+
+	args := []interface{}{
+		dish.Name,
+		dish.Price,
+		dish.Description,
+		pq.Array(dish.Category),
+		dish.Photo,
+		dish.Available,
+		dish.Id,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+
+	defer cancel()
+
+	result, err := d.DB.ExecContext(ctx, query, args...)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return ErrEditConflict
+		default:
+			return err
+		}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrRecordNotFound
+	}
+
 	return nil
 }
 
