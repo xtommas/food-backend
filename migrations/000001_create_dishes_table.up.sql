@@ -4,5 +4,6 @@ CREATE TABLE IF NOT EXISTS dishes (
     price FLOAT NOT NULL,
     description TEXT NOT NULL,
     category TEXT[] NOT NULL,
-    photo TEXT
+    photo TEXT,
+    available BOOLEAN NOT NULL DEFAULT TRUE
 );

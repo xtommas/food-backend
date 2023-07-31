@@ -38,7 +38,20 @@ func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	fmt.Fprintf(w, "%+v\n", input)
+	err = app.models.Dishes.Insert(dish)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	headers := make(http.Header)
+	headers.Set("Location", fmt.Sprintf("/dishes/%d", dish.Id))
+
+	err = app.writeJSON(w, http.StatusCreated, envelope{"dish": dish}, headers)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+
 }
 
 func (app *application) showDishHandler(w http.ResponseWriter, r *http.Request) {
@@ -55,6 +68,7 @@ func (app *application) showDishHandler(w http.ResponseWriter, r *http.Request) 
 		Category:    []string{"Pizzas"},
 		Description: "Pizza de Muzzarella de 8 porciones",
 		Photo:       "",
+		Available:   true,
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"dish": dish}, nil)
