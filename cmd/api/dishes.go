@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -61,14 +62,15 @@ func (app *application) showDishHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	dish := data.Dish{
-		Id:          id,
-		Name:        "Pizza",
-		Price:       1500,
-		Category:    []string{"Pizzas"},
-		Description: "Pizza de Muzzarella de 8 porciones",
-		Photo:       "",
-		Available:   true,
+	dish, err := app.models.Dishes.Get(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"dish": dish}, nil)

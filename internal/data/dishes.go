@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 	"unicode/utf8"
 
@@ -58,7 +59,43 @@ func (d DishModel) Insert(dish *Dish) error {
 }
 
 func (d DishModel) Get(id int64) (*Dish, error) {
-	return nil, nil
+	if id < 1 {
+		return nil, ErrRecordNotFound
+	}
+
+	query := `
+		SELECT id, name, price, description, category, photo, available
+		FROM dishes
+		WHERE id = $1`
+
+	var dish Dish
+
+	// create context with a 3 second timeout deadline
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+
+	defer cancel()
+
+	// use QueryRowContext to pass the context with the deadline
+	err := d.DB.QueryRowContext(ctx, query, id).Scan(
+		&dish.Id,
+		&dish.Name,
+		&dish.Price,
+		&dish.Description,
+		pq.Array(&dish.Category),
+		&dish.Photo,
+		&dish.Available,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &dish, nil
 }
 
 func (d DishModel) Update(dish *Dish) error {
