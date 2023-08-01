@@ -187,3 +187,43 @@ func (app *application) deleteDishHandler(w http.ResponseWriter, r *http.Request
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+func (app *application) listDishesHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Name      string
+		Category  []string
+		Available bool
+		data.Filters
+	}
+
+	v := validator.New()
+
+	qs := r.URL.Query()
+
+	input.Name = app.readString(qs, "name", "")
+	// input.Available = app.readBool(qs, "available", nil, v)
+	input.Category = app.readCSV(qs, "genres", []string{})
+
+	input.Filters.Page = app.readInt(qs, "page", 1, v)
+	input.Filters.PageSize = app.readInt(qs, "page_size", 20, v)
+
+	input.Filters.Sort = app.readString(qs, "sort", "id")
+
+	input.Filters.SortSafelist = []string{"id", "name", "price", "available", "-id", "-name", "-price", "-available"}
+
+	if data.ValidateFilters(v, input.Filters); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	dishes, err := app.models.Dishes.GetAll(input.Name, input.Category, input.Available, input.Filters)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"dishes": dishes}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}

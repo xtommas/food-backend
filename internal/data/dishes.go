@@ -169,3 +169,48 @@ func (d DishModel) Delete(id int64) error {
 
 	return nil
 }
+
+func (d DishModel) GetAll(name string, category []string, available bool, filters Filters) ([]*Dish, error) {
+	query := `
+		SELECT id, name, price, description, category, photo, available
+		FROM dishes
+		ORDER BY id`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rows, err := d.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	dishes := []*Dish{}
+
+	for rows.Next() {
+		var dish Dish
+
+		err := rows.Scan(
+			&dish.Id,
+			&dish.Name,
+			&dish.Price,
+			&dish.Description,
+			pq.Array(&dish.Category),
+			&dish.Photo,
+			&dish.Available,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		dishes = append(dishes, &dish)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return dishes, nil
+}
