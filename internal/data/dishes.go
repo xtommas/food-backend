@@ -170,18 +170,19 @@ func (d DishModel) Delete(id int64) error {
 	return nil
 }
 
-func (d DishModel) GetAll(name string, category []string, available string, filters Filters) ([]*Dish, error) {
+func (d DishModel) GetAll(name string, category []string, available sql.NullBool, filters Filters) ([]*Dish, error) {
 	query := `
 		SELECT id, name, price, description, category, photo, available
 		FROM dishes
 		WHERE (to_tsvector('simple', name) @@ plainto_tsquery('simple', $1) OR $1 = '')
 		AND (category @> $2 OR $2 = '{}')
+		AND (available = $3 OR $3 IS NULL)
 		ORDER BY id`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := d.DB.QueryContext(ctx, query, name, pq.Array(category))
+	rows, err := d.DB.QueryContext(ctx, query, name, pq.Array(category), available)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -192,7 +193,7 @@ func (app *application) listDishesHandler(w http.ResponseWriter, r *http.Request
 	var input struct {
 		Name      string
 		Category  []string
-		Available string
+		Available sql.NullBool
 		data.Filters
 	}
 
@@ -201,7 +202,7 @@ func (app *application) listDishesHandler(w http.ResponseWriter, r *http.Request
 	qs := r.URL.Query()
 
 	input.Name = app.readString(qs, "name", "")
-	input.Available = app.readString(qs, "available", "")
+	input.Available = app.readBool(qs, "available", v)
 	input.Category = app.readCSV(qs, "category", []string{})
 
 	input.Filters.Page = app.readInt(qs, "page", 1, v)

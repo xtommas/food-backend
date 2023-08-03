@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -141,18 +142,25 @@ func (app *application) readInt(queryString url.Values, key string, defaultValue
 	return i
 }
 
-func (app *application) readBool(queryString url.Values, key string, defaultValue *bool, v *validator.Validator) bool {
+func (app *application) readBool(queryString url.Values, key string, v *validator.Validator) sql.NullBool {
 	s := queryString.Get(key)
 
+	var defaultValue sql.NullBool
+	defaultValue.Valid = false
+
 	if s == "" {
-		return *defaultValue
+		return defaultValue
 	}
 
-	i, err := strconv.ParseBool(s)
+	var availableBool sql.NullBool
+	var err error
+
+	availableBool.Bool, err = strconv.ParseBool(s)
 	if err != nil {
 		v.AddError(key, "must be a boolean value")
-		return *defaultValue
+		return defaultValue
 	}
+	availableBool.Valid = true
 
-	return i
+	return availableBool
 }
