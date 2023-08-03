@@ -192,7 +192,7 @@ func (app *application) listDishesHandler(w http.ResponseWriter, r *http.Request
 	var input struct {
 		Name      string
 		Category  []string
-		Available bool
+		Available string
 		data.Filters
 	}
 
@@ -201,8 +201,8 @@ func (app *application) listDishesHandler(w http.ResponseWriter, r *http.Request
 	qs := r.URL.Query()
 
 	input.Name = app.readString(qs, "name", "")
-	// input.Available = app.readBool(qs, "available", nil, v)
-	input.Category = app.readCSV(qs, "genres", []string{})
+	input.Available = app.readString(qs, "available", "")
+	input.Category = app.readCSV(qs, "category", []string{})
 
 	input.Filters.Page = app.readInt(qs, "page", 1, v)
 	input.Filters.PageSize = app.readInt(qs, "page_size", 20, v)
