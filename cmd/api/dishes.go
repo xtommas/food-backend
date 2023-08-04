@@ -217,13 +217,13 @@ func (app *application) listDishesHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	dishes, err := app.models.Dishes.GetAll(input.Name, input.Category, input.Available, input.Filters)
+	dishes, metadata, err := app.models.Dishes.GetAll(input.Name, input.Category, input.Available, input.Filters)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	err = app.writeJSON(w, http.StatusOK, envelope{"dishes": dishes}, nil)
+	err = app.writeJSON(w, http.StatusOK, envelope{"dishes": dishes, "metadata": metadata}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

@@ -171,31 +171,34 @@ func (d DishModel) Delete(id int64) error {
 	return nil
 }
 
-func (d DishModel) GetAll(name string, category []string, available sql.NullBool, filters Filters) ([]*Dish, error) {
+func (d DishModel) GetAll(name string, category []string, available sql.NullBool, filters Filters) ([]*Dish, Metadata, error) {
 	query := fmt.Sprintf(`
-		SELECT id, name, price, description, category, photo, available
+		SELECT COUNT(*) OVER(), id, name, price, description, category, photo, available
 		FROM dishes
 		WHERE (to_tsvector('simple', name) @@ plainto_tsquery('simple', $1) OR $1 = '')
 		AND (category @> $2 OR $2 = '{}')
 		AND (available = $3 OR $3 IS NULL)
-		ORDER BY %s %s, id ASC`, filters.sortColumn(), filters.sortDirection())
+		ORDER BY %s %s, id ASC
+		LIMIT $4 OFFSET $5`, filters.sortColumn(), filters.sortDirection())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := d.DB.QueryContext(ctx, query, name, pq.Array(category), available)
+	rows, err := d.DB.QueryContext(ctx, query, name, pq.Array(category), available, filters.limit(), filters.offset())
 	if err != nil {
-		return nil, err
+		return nil, Metadata{}, err
 	}
 
 	defer rows.Close()
 
+	totalRecords := 0
 	dishes := []*Dish{}
 
 	for rows.Next() {
 		var dish Dish
 
 		err := rows.Scan(
+			&totalRecords,
 			&dish.Id,
 			&dish.Name,
 			&dish.Price,
@@ -206,15 +209,17 @@ func (d DishModel) GetAll(name string, category []string, available sql.NullBool
 		)
 
 		if err != nil {
-			return nil, err
+			return nil, Metadata{}, err
 		}
 
 		dishes = append(dishes, &dish)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, err
+		return nil, Metadata{}, err
 	}
 
-	return dishes, nil
+	metadata := calculateMetadata(totalRecords, filters.Page, filters.PageSize)
+
+	return dishes, metadata, nil
 }
