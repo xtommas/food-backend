@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/xtommas/food-backend/internal/data"
 	"github.com/xtommas/food-backend/internal/validator"
@@ -59,11 +60,11 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	// 	return
 	// }
 
-	// token, err := app.models.Tokens.New(user.Id, 3*24*time.Hour, data.ScopeActivation)
-	// if err != nil {
-	// 	app.serverErrorResponse(w, r, err)
-	// 	return
-	// }
+	token, err := app.models.Tokens.New(user.Id, 3*24*time.Hour, data.ScopeActivation)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
 
 	// app.background(func() {
 	// 	data := map[string]interface{}{
@@ -71,13 +72,13 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	// 		"userId":          user.Id,
 	// 	}
 
-	// 	err = app.mailer.Send(user.Email, "user_welcome.html", data)
-	// 	if err != nil {
-	// 		app.logger.PrintError(err, nil)
-	// 	}
+	// 	// 	err = app.mailer.Send(user.Email, "user_welcome.html", data)
+	// 	// 	if err != nil {
+	// 	// 		app.logger.PrintError(err, nil)
+	// 	// 	}
 	// })
 
-	err = app.writeJSON(w, http.StatusAccepted, envelope{"user": user}, nil)
+	err = app.writeJSON(w, http.StatusAccepted, envelope{"user": user, "activation_token": token.Plaintext}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

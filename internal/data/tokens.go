@@ -25,10 +25,6 @@ type Token struct {
 	Scope     string    `json:"-"`
 }
 
-type TokenModel struct {
-	DB *sql.DB
-}
-
 func generateToken(userID int64, ttl time.Duration, scope string) (*Token, error) {
 	token := &Token{
 		UserID: userID,
@@ -61,6 +57,10 @@ func generateToken(userID int64, ttl time.Duration, scope string) (*Token, error
 func ValidateTokenPlaintext(v *validator.Validator, tokenPlaintext string) {
 	v.Check(tokenPlaintext != "", "token", "must be provided")
 	v.Check(len(tokenPlaintext) == 26, "token", "must be 26 bytes long")
+}
+
+type TokenModel struct {
+	DB *sql.DB
 }
 
 func (m TokenModel) New(userID int64, ttl time.Duration, scope string) (*Token, error) {
