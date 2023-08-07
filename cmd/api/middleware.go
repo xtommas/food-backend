@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/tomasen/realip"
 	"github.com/xtommas/food-backend/internal/data"
+	"github.com/xtommas/food-backend/internal/validator"
 	"golang.org/x/time/rate"
 )
 
@@ -102,5 +104,29 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 			app.invalidAuthenticationTokenResponse(w, r)
 			return
 		}
+
+		token := headerParts[1]
+
+		v := validator.New()
+
+		if data.ValidateTokenPlaintext(v, token); !v.Valid() {
+			app.invalidAuthenticationTokenResponse(w, r)
+			return
+		}
+
+		user, err := app.models.Users.GetForToken(data.ScopeAuthentication, token)
+		if err != nil {
+			switch {
+			case errors.Is(err, data.ErrRecordNotFound):
+				app.invalidAuthenticationTokenResponse(w, r)
+			default:
+				app.serverErrorResponse(w, r, err)
+			}
+			return
+		}
+
+		r = app.contextSetUser(r, user)
+
+		next.ServeHTTP(w, r)
 	})
 }
