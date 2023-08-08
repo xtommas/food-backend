@@ -14,11 +14,11 @@ func (app *application) routes() http.Handler {
 
 	router.HandlerFunc(http.MethodGet, "/healthcheck", app.healthcheckHandler)
 
-	router.HandlerFunc(http.MethodGet, "/dishes", app.requireActivatedUser(app.listDishesHandler))
-	router.HandlerFunc(http.MethodPost, "/dishes", app.requireActivatedUser(app.createDishHandler))
-	router.HandlerFunc(http.MethodGet, "/dishes/:id", app.requireActivatedUser(app.showDishHandler))
-	router.HandlerFunc(http.MethodPatch, "/dishes/:id", app.requireActivatedUser(app.updateDishHandler))
-	router.HandlerFunc(http.MethodDelete, "/dishes/:id", app.requireActivatedUser(app.deleteDishHandler))
+	router.HandlerFunc(http.MethodGet, "/dishes", app.requirePermission("dishes:read", app.listDishesHandler))
+	router.HandlerFunc(http.MethodPost, "/dishes", app.requirePermission("dishes:write", app.createDishHandler))
+	router.HandlerFunc(http.MethodGet, "/dishes/:id", app.requirePermission("dishes:read", app.showDishHandler))
+	router.HandlerFunc(http.MethodPatch, "/dishes/:id", app.requirePermission("dishes:write", app.updateDishHandler))
+	router.HandlerFunc(http.MethodDelete, "/dishes/:id", app.requirePermission("dishes:write", app.deleteDishHandler))
 
 	router.HandlerFunc(http.MethodPost, "/users", app.registerUserHandler)
 	router.HandlerFunc(http.MethodPut, "/users/activated", app.activateUserHandler)
