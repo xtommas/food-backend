@@ -66,18 +66,6 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// app.background(func() {
-	// 	data := map[string]interface{}{
-	// 		"activationToken": token.Plaintext,
-	// 		"userId":          user.Id,
-	// 	}
-
-	// 	// 	err = app.mailer.Send(user.Email, "user_welcome.html", data)
-	// 	// 	if err != nil {
-	// 	// 		app.logger.PrintError(err, nil)
-	// 	// 	}
-	// })
-
 	err = app.writeJSON(w, http.StatusAccepted, envelope{"user": user, "activation_token": token.Plaintext}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)

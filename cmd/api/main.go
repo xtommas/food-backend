@@ -4,13 +4,20 @@ import (
 	"context"
 	"database/sql"
 	"flag"
+	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	_ "github.com/lib/pq"
 	"github.com/xtommas/food-backend/internal/data"
 	"github.com/xtommas/food-backend/internal/jsonlog"
+)
+
+var (
+	buildTime string
+	version   string
 )
 
 type config struct {
@@ -26,6 +33,9 @@ type config struct {
 		rps     float64
 		burst   int
 		enabled bool
+	}
+	cors struct {
+		trustedOrigins []string
 	}
 }
 
@@ -54,7 +64,22 @@ func main() {
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
 
+	// CORS flags
+	flag.Func("cors-trusted-origins", "Trusted CORS origins (space separated)", func(val string) error {
+		cfg.cors.trustedOrigins = strings.Fields(val)
+		return nil
+	})
+
+	// version flags
+	displayVersion := flag.Bool("version", false, "Display version and exit")
+
 	flag.Parse()
+
+	if *displayVersion {
+		fmt.Printf("Version:\t%s\n", version)
+		fmt.Printf("Build time:\t%s\n", buildTime)
+		os.Exit(0)
+	}
 
 	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
 
