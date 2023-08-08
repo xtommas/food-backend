@@ -71,3 +71,15 @@ func (m PermissionModel) AddForUser(userId int64, codes ...string) error {
 	_, err := m.DB.ExecContext(ctx, query, userId, pq.Array(codes))
 	return err
 }
+
+func (m PermissionModel) DeleteForUser(userId int64, code string) error {
+	query := `
+		DELETE FROM users_permissions
+		WHERE user_id = $1 AND permission_id IN (SELECT id FROM permissions WHERE permissions.code = $2)`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	_, err := m.DB.ExecContext(ctx, query, userId, code)
+	return err
+}

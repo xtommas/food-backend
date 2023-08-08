@@ -14,6 +14,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		Name     string `json:"name"`
 		Email    string `json:"email"`
 		Password string `json:"password"`
+		Role     string `json:"role"`
 	}
 
 	err := app.readJSON(w, r, &input)
@@ -26,7 +27,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		Name:      input.Name,
 		Email:     input.Email,
 		Activated: false,
-		Role:      "customer",
+		Role:      input.Role,
 	}
 
 	err = user.Password.Set(input.Password)
@@ -58,6 +59,14 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
+	}
+
+	if user.Role != "customer" {
+		err = app.models.Permissions.AddForUser(user.Id, "dishes:write")
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
 	}
 
 	token, err := app.models.Tokens.New(user.Id, 3*24*time.Hour, data.ScopeActivation)
@@ -187,6 +196,78 @@ func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http
 	}
 
 	env := envelope{"message": "your password was successfully reset"}
+
+	err = app.writeJSON(w, http.StatusOK, env, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) updateUserRoleHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Email string `json:"email"`
+		Role  string `json:"role"`
+	}
+
+	err := app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	v := validator.New()
+
+	data.ValidateEmail(v, input.Email)
+	data.ValidateRole(v, input.Role)
+
+	if !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	user, err := app.models.Users.GetByEmail(input.Email)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			v.AddError("email", "invalid email")
+			app.failedValidationResponse(w, r, v.Errors)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	oldRole := user.Role
+
+	user.Role = input.Role
+
+	err = app.models.Users.Update(user)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	if user.Role != "customer" {
+		err = app.models.Permissions.AddForUser(user.Id, "dishes:write")
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+	} else {
+		if oldRole != "customer" {
+			err = app.models.Permissions.DeleteForUser(user.Id, "dishes:write")
+			if err != nil {
+				app.serverErrorResponse(w, r, err)
+				return
+			}
+		}
+	}
+	env := envelope{"message": "role successfully updated"}
 
 	err = app.writeJSON(w, http.StatusOK, env, nil)
 	if err != nil {
