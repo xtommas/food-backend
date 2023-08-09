@@ -41,7 +41,13 @@ func (app *application) methodNotAllowedResponse(w http.ResponseWriter, r *http.
 }
 
 func (app *application) badRequestResponse(w http.ResponseWriter, r *http.Request, err error) {
-	app.errorResponse(w, r, http.StatusBadRequest, err.Error())
+	var message string
+	if err.Error() == "http: no such file" {
+		message = "provide an image file"
+	} else {
+		message = err.Error()
+	}
+	app.errorResponse(w, r, http.StatusBadRequest, message)
 }
 
 func (app *application) failedValidationResponse(w http.ResponseWriter, r *http.Request, errors map[string]string) {

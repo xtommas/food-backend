@@ -8,10 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/xtommas/food-backend/internal/data"
 	"github.com/xtommas/food-backend/internal/validator"
 )
 
@@ -163,4 +165,27 @@ func (app *application) readBool(queryString url.Values, key string, v *validato
 	availableBool.Valid = true
 
 	return availableBool
+}
+
+func (app *application) storeImage(w http.ResponseWriter, r *http.Request, dish *data.Dish) error {
+	image, _, err := r.FormFile("photo")
+	if err != nil {
+		return err
+	}
+	defer image.Close()
+
+	filename := dish.Name + "-photo.jpg"
+
+	newImage, err := os.Create("images/dishes/" + filename)
+	if err != nil {
+		return err
+	}
+	defer newImage.Close()
+
+	_, err = io.Copy(newImage, image)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

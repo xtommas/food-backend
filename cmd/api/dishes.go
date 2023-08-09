@@ -2,12 +2,13 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/xtommas/food-backend/internal/data"
 	"github.com/xtommas/food-backend/internal/validator"
@@ -16,16 +17,9 @@ import (
 func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseMultipartForm(10 << 20) // limit to 10 MB
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		app.badRequestResponse(w, r, err)
 		return
 	}
-
-	image, _, err := r.FormFile("photo")
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-	defer image.Close()
 
 	var input struct {
 		Name        string     `json:"name"`
@@ -34,17 +28,12 @@ func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request
 		Category    []string   `json:"category"`
 	}
 
-	jsonData := r.Form.Get("json-data")
+	jsonData := r.FormValue("json-data")
+	r.Body = io.NopCloser(strings.NewReader(jsonData))
 
-	// err = app.readJSON(w, r, &input)
-	// if err != nil {
-	// 	app.badRequestResponse(w, r, err)
-	// 	return
-	// }
-
-	err = json.Unmarshal([]byte(jsonData), &input)
+	err = app.readJSON(w, r, &input)
 	if err != nil {
-		http.Error(w, "Error decoding JSON data", http.StatusBadRequest)
+		app.badRequestResponse(w, r, err)
 		return
 	}
 
@@ -56,28 +45,16 @@ func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request
 		Photo:       "/images/dishes/" + input.Name + "-photo.jpg",
 	}
 
-	filename := dish.Name + "-photo.jpg"
-	//location := "/images/dishes/" + filename
-
-	newImage, err := os.Create("images/dishes/" + filename)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-	defer newImage.Close()
-
-	_, err = io.Copy(newImage, image)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-
-	//photo := location
-
 	v := validator.New()
 
 	if data.ValidateDish(v, dish); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	err = app.storeImage(w, r, dish)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
 		return
 	}
 
@@ -155,7 +132,7 @@ func (app *application) updateDishHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// if the input values are not nil, update the movie record with the new value
+	// if the input values are not nil, update the dish record with the new value
 	if input.Name != nil {
 		dish.Name = *input.Name
 	}
@@ -180,7 +157,7 @@ func (app *application) updateDishHandler(w http.ResponseWriter, r *http.Request
 		dish.Available = *input.Available
 	}
 
-	// validate the updated movie
+	// validate the updated dish
 	v := validator.New()
 
 	if data.ValidateDish(v, dish); !v.Valid() {
@@ -213,6 +190,17 @@ func (app *application) deleteDishHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	dish, err := app.models.Dishes.Get(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
 	err = app.models.Dishes.Delete(id)
 	if err != nil {
 		switch {
@@ -221,6 +209,16 @@ func (app *application) deleteDishHandler(w http.ResponseWriter, r *http.Request
 		default:
 			app.serverErrorResponse(w, r, err)
 		}
+		return
+	}
+
+	// remove first /, so os.Remove works
+	imageLocation := dish.Photo[1:]
+
+	err = os.Remove(imageLocation)
+	if err != nil {
+		log.Println("Error deleting image:", err)
+		app.editConflictResponse(w, r)
 		return
 	}
 
