@@ -21,6 +21,7 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/dishes/:id", app.requirePermission("dishes:read", app.showDishHandler))
 	router.HandlerFunc(http.MethodPatch, "/dishes/:id", app.requirePermission("dishes:write", app.updateDishHandler))
 	router.HandlerFunc(http.MethodDelete, "/dishes/:id", app.requirePermission("dishes:write", app.deleteDishHandler))
+	router.HandlerFunc(http.MethodPost, "/dishes/photo/:id", app.requirePermission("dishes:write", app.uploadPhotoHandler))
 
 	// users endpoints
 	router.HandlerFunc(http.MethodPost, "/users", app.registerUserHandler)

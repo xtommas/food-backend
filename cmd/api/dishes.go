@@ -4,23 +4,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
 	"os"
-	"strings"
+	"strconv"
 
 	"github.com/xtommas/food-backend/internal/data"
 	"github.com/xtommas/food-backend/internal/validator"
 )
 
 func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseMultipartForm(10 << 20) // limit to 10 MB
-	if err != nil {
-		app.badRequestResponse(w, r, err)
-		return
-	}
-
 	var input struct {
 		Name        string     `json:"name"`
 		Price       data.Price `json:"price"`
@@ -28,10 +20,7 @@ func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request
 		Category    []string   `json:"category"`
 	}
 
-	jsonData := r.FormValue("json-data")
-	r.Body = io.NopCloser(strings.NewReader(jsonData))
-
-	err = app.readJSON(w, r, &input)
+	err := app.readJSON(w, r, &input)
 	if err != nil {
 		app.badRequestResponse(w, r, err)
 		return
@@ -42,19 +31,12 @@ func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request
 		Price:       input.Price,
 		Description: input.Description,
 		Category:    input.Category,
-		Photo:       "/images/dishes/" + input.Name + "-photo.jpg",
 	}
 
 	v := validator.New()
 
 	if data.ValidateDish(v, dish); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
-		return
-	}
-
-	err = app.storeImage(w, r, dish)
-	if err != nil {
-		app.badRequestResponse(w, r, err)
 		return
 	}
 
@@ -213,11 +195,10 @@ func (app *application) deleteDishHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	// remove first /, so os.Remove works
-	imageLocation := dish.Photo[1:]
+	//imageLocation := dish.Photo[1:]
 
-	err = os.Remove(imageLocation)
+	err = os.Remove(dish.Photo)
 	if err != nil {
-		log.Println("Error deleting image:", err)
 		app.editConflictResponse(w, r)
 		return
 	}
@@ -263,6 +244,58 @@ func (app *application) listDishesHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"dishes": dishes, "metadata": metadata}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIdParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	dish, err := app.models.Dishes.Get(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = r.ParseMultipartForm(10 << 20) // limit to 10 MB
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	fileName := strconv.FormatInt(int64(dish.Id), 10) + ".jpg"
+	folder := "images/dishes/"
+
+	err = app.storeImage(w, r, "images/dishes/", fileName)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	dish.Photo = folder + fileName
+
+	err = app.models.Dishes.Update(dish)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"dish": dish}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

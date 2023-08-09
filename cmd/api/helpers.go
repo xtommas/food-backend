@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/xtommas/food-backend/internal/data"
 	"github.com/xtommas/food-backend/internal/validator"
 )
 
@@ -167,16 +166,24 @@ func (app *application) readBool(queryString url.Values, key string, v *validato
 	return availableBool
 }
 
-func (app *application) storeImage(w http.ResponseWriter, r *http.Request, dish *data.Dish) error {
+func (app *application) storeImage(w http.ResponseWriter, r *http.Request, folder string, fileName string) error {
 	image, _, err := r.FormFile("photo")
 	if err != nil {
 		return err
 	}
 	defer image.Close()
 
-	filename := dish.Name + "-photo.jpg"
+	_, err = os.Stat(folder + fileName)
+	if err == nil {
+		err := os.Remove(folder + fileName)
+		if err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
 
-	newImage, err := os.Create("images/dishes/" + filename)
+	newImage, err := os.Create(folder + fileName)
 	if err != nil {
 		return err
 	}
