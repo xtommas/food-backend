@@ -2,26 +2,49 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 
 	"github.com/xtommas/food-backend/internal/data"
 	"github.com/xtommas/food-backend/internal/validator"
 )
 
 func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseMultipartForm(10 << 20) // limit to 10 MB
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	image, _, err := r.FormFile("photo")
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	defer image.Close()
+
 	var input struct {
 		Name        string     `json:"name"`
 		Price       data.Price `json:"price"`
 		Description string     `json:"description"`
 		Category    []string   `json:"category"`
-		Photo       string     `json:"photo"`
 	}
 
-	err := app.readJSON(w, r, &input)
+	jsonData := r.Form.Get("json-data")
+
+	// err = app.readJSON(w, r, &input)
+	// if err != nil {
+	// 	app.badRequestResponse(w, r, err)
+	// 	return
+	// }
+
+	err = json.Unmarshal([]byte(jsonData), &input)
 	if err != nil {
-		app.badRequestResponse(w, r, err)
+		http.Error(w, "Error decoding JSON data", http.StatusBadRequest)
 		return
 	}
 
@@ -30,8 +53,26 @@ func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request
 		Price:       input.Price,
 		Description: input.Description,
 		Category:    input.Category,
-		Photo:       input.Photo,
+		Photo:       "/images/dishes/" + input.Name + "-photo.jpg",
 	}
+
+	filename := dish.Name + "-photo.jpg"
+	//location := "/images/dishes/" + filename
+
+	newImage, err := os.Create("images/dishes/" + filename)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	defer newImage.Close()
+
+	_, err = io.Copy(newImage, image)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	//photo := location
 
 	v := validator.New()
 
