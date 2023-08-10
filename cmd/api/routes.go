@@ -29,13 +29,12 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPut, "/users/activated", app.activateUserHandler)
 	router.HandlerFunc(http.MethodPut, "/users/password", app.updateUserPasswordHandler)
 	router.HandlerFunc(http.MethodPut, "/users/role", app.requireAdmin(app.updateUserRoleHandler))
+	router.HandlerFunc(http.MethodGet, "/users/me", app.requireActivatedUser(app.getUserDataHandler))
 
 	// tokens edpoints
 	router.HandlerFunc(http.MethodPost, "/tokens/authentication", app.createAuthenticationTokenHandler)
 	router.HandlerFunc(http.MethodPost, "/tokens/password-reset", app.createPasswordResetTokenHandler)
 	router.HandlerFunc(http.MethodPost, "/tokens/activation", app.createActivationTokenHandler)
-
-	// router.GET("/dishes/photo/:photo_id", app.servePhotoHandler)
 
 	// debug
 	router.Handler(http.MethodGet, "/debug/vars", expvar.Handler())
