@@ -4,8 +4,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
+	"mime"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/xtommas/food-backend/internal/data"
@@ -194,9 +197,6 @@ func (app *application) deleteDishHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// remove first /, so os.Remove works
-	//imageLocation := dish.Photo[1:]
-
 	err = os.Remove(dish.Photo)
 	if err != nil {
 		app.editConflictResponse(w, r)
@@ -296,6 +296,47 @@ func (app *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"dish": dish}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) servePhotoHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIdParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	dish, err := app.models.Dishes.Get(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	imagePath := dish.Photo
+
+	// Open the image file
+	imageFile, err := os.Open(imagePath)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+	defer imageFile.Close()
+
+	// Get the image's content type
+	contentType := mime.TypeByExtension(filepath.Ext(imagePath))
+
+	// Set the content type header
+	w.Header().Set("Content-Type", contentType)
+
+	// Copy the image contents to the response
+	_, err = io.Copy(w, imageFile)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

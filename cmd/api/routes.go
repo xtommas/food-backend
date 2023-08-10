@@ -22,6 +22,7 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPatch, "/dishes/:id", app.requirePermission("dishes:write", app.updateDishHandler))
 	router.HandlerFunc(http.MethodDelete, "/dishes/:id", app.requirePermission("dishes:write", app.deleteDishHandler))
 	router.HandlerFunc(http.MethodPost, "/dishes/photo/:id", app.requirePermission("dishes:write", app.uploadPhotoHandler))
+	router.HandlerFunc(http.MethodGet, "/dishes/:id/photo/", app.requirePermission("dishes:read", app.servePhotoHandler))
 
 	// users endpoints
 	router.HandlerFunc(http.MethodPost, "/users", app.registerUserHandler)
@@ -33,6 +34,8 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPost, "/tokens/authentication", app.createAuthenticationTokenHandler)
 	router.HandlerFunc(http.MethodPost, "/tokens/password-reset", app.createPasswordResetTokenHandler)
 	router.HandlerFunc(http.MethodPost, "/tokens/activation", app.createActivationTokenHandler)
+
+	// router.GET("/dishes/photo/:photo_id", app.servePhotoHandler)
 
 	// debug
 	router.Handler(http.MethodGet, "/debug/vars", expvar.Handler())
