@@ -9,6 +9,6 @@ CREATE TABLE IF NOT EXISTS users_permissions (
     PRIMARY KEY (user_id, permission_id)
 );
 
--- Add the two permissions to the table
+-- Add the permissions to the table
 INSERT INTO permissions (code)
-VALUES ('dishes:read'), ('dishes:write');
+VALUES ('dishes:read'), ('dishes:write'), ('restaurants:read');

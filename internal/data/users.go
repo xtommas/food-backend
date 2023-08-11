@@ -18,6 +18,7 @@ var AnonymousUser = &User{}
 
 type User struct {
 	Id        int64     `json:"id"`
+	Photo     string    `json:"photo,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	Name      string    `json:"name"`
 	Email     string    `json:"email"`
@@ -103,11 +104,11 @@ type UserModel struct {
 
 func (m UserModel) Insert(user *User) error {
 	query := `
-		INSERT INTO users (name, email, password_hash, activated, role)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO users (photo, name, email, password_hash, activated, role)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, created_at, version`
 
-	args := []interface{}{user.Name, user.Email, user.Password.hash, user.Activated, user.Role}
+	args := []interface{}{user.Photo, user.Name, user.Email, user.Password.hash, user.Activated, user.Role}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -127,7 +128,7 @@ func (m UserModel) Insert(user *User) error {
 
 func (m UserModel) GetByEmail(email string) (*User, error) {
 	query := `
-		SELECT id, created_at, name, email, password_hash, activated, version, role
+		SELECT id, photo, created_at, name, email, password_hash, activated, version, role
 		FROM users
 		WHERE email = $1`
 
@@ -138,6 +139,7 @@ func (m UserModel) GetByEmail(email string) (*User, error) {
 
 	err := m.DB.QueryRowContext(ctx, query, email).Scan(
 		&user.Id,
+		&user.Photo,
 		&user.CreatedAt,
 		&user.Name,
 		&user.Email,
@@ -157,6 +159,52 @@ func (m UserModel) GetByEmail(email string) (*User, error) {
 	}
 
 	return &user, nil
+}
+
+func (m UserModel) GetRestaurants() ([]*User, error) {
+	query := `
+		SELECT id, photo, created_at, name, email, activated, version, role
+		FROM users
+		WHERE role = 'restaurant'`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rows, err := m.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	users := []*User{}
+
+	for rows.Next() {
+		var user User
+
+		err := rows.Scan(
+			&user.Id,
+			&user.Photo,
+			&user.CreatedAt,
+			&user.Name,
+			&user.Email,
+			&user.Activated,
+			&user.Version,
+			&user.Role,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		users = append(users, &user)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
 }
 
 func (m UserModel) Update(user *User) error {
@@ -198,7 +246,7 @@ func (m UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error)
 	tokenHash := sha256.Sum256([]byte(tokenPlaintext))
 
 	query := `
-		SELECT users.id, users.created_at, users.name, users.email, users.password_hash, users.activated, users.version, users.role
+		SELECT users.id, users.photo, users.created_at, users.name, users.email, users.password_hash, users.activated, users.version, users.role
 		FROM users
 		INNER JOIN tokens
 		ON users.id = tokens.user_id
@@ -216,6 +264,7 @@ func (m UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error)
 
 	err := m.DB.QueryRowContext(ctx, query, args...).Scan(
 		&user.Id,
+		&user.Photo,
 		&user.CreatedAt,
 		&user.Name,
 		&user.Email,
@@ -238,7 +287,7 @@ func (m UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error)
 
 func (m UserModel) Get(id int64) (*User, error) {
 	query := `
-		SELECT id, created_at, name, email, password_hash, activated, version, role
+		SELECT id, photo, created_at, name, email, password_hash, activated, version, role
 		FROM users
 		WHERE id = $1`
 
@@ -249,6 +298,7 @@ func (m UserModel) Get(id int64) (*User, error) {
 
 	err := m.DB.QueryRowContext(ctx, query, id).Scan(
 		&user.Id,
+		&user.Photo,
 		&user.CreatedAt,
 		&user.Name,
 		&user.Email,

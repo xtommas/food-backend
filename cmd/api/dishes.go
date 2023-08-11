@@ -16,24 +16,38 @@ import (
 )
 
 func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request) {
+	restaurant_id, err := app.readIdParam(r, "restaurant_id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
 	var input struct {
 		Name        string     `json:"name"`
 		Price       data.Price `json:"price"`
 		Description string     `json:"description"`
-		Category    []string   `json:"category"`
+		Categories  []string   `json:"categories"`
 	}
 
-	err := app.readJSON(w, r, &input)
+	err = app.readJSON(w, r, &input)
 	if err != nil {
 		app.badRequestResponse(w, r, err)
 		return
 	}
 
+	restaurant := app.contextGetUser(r)
+
+	if restaurant.Id != restaurant_id {
+		app.notPermittedResponse(w, r)
+		return
+	}
+
 	dish := &data.Dish{
-		Name:        input.Name,
-		Price:       input.Price,
-		Description: input.Description,
-		Category:    input.Category,
+		Name:          input.Name,
+		Restaurant_id: restaurant.Id,
+		Price:         input.Price,
+		Description:   input.Description,
+		Categories:    input.Categories,
 	}
 
 	v := validator.New()
@@ -50,7 +64,7 @@ func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	headers := make(http.Header)
-	headers.Set("Location", fmt.Sprintf("/dishes/%d", dish.Id))
+	headers.Set("Location", fmt.Sprintf("/restaurant/%d/dishes/%d", dish.Restaurant_id, dish.Id))
 
 	err = app.writeJSON(w, http.StatusCreated, envelope{"dish": dish}, headers)
 	if err != nil {
@@ -60,13 +74,19 @@ func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (app *application) showDishHandler(w http.ResponseWriter, r *http.Request) {
-	id, err := app.readIdParam(r)
+	restaurant_id, err := app.readIdParam(r, "restaurant_id")
 	if err != nil {
 		app.notFoundResponse(w, r)
 		return
 	}
 
-	dish, err := app.models.Dishes.Get(id)
+	id, err := app.readIdParam(r, "id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	dish, err := app.models.Dishes.GetForRestaurant(id, restaurant_id)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -84,9 +104,22 @@ func (app *application) showDishHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (app *application) updateDishHandler(w http.ResponseWriter, r *http.Request) {
-	id, err := app.readIdParam(r)
+	restaurant_id, err := app.readIdParam(r, "restaurant_id")
 	if err != nil {
 		app.notFoundResponse(w, r)
+		return
+	}
+
+	id, err := app.readIdParam(r, "id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	restaurant := app.contextGetUser(r)
+
+	if restaurant.Id != restaurant_id {
+		app.notPermittedResponse(w, r)
 		return
 	}
 
@@ -131,7 +164,7 @@ func (app *application) updateDishHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	if input.Category != nil {
-		dish.Category = input.Category
+		dish.Categories = input.Category
 	}
 
 	if input.Photo != nil {
@@ -169,9 +202,22 @@ func (app *application) updateDishHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (app *application) deleteDishHandler(w http.ResponseWriter, r *http.Request) {
-	id, err := app.readIdParam(r)
+	restaurant_id, err := app.readIdParam(r, "restaurant_id")
 	if err != nil {
 		app.notFoundResponse(w, r)
+		return
+	}
+
+	id, err := app.readIdParam(r, "id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	restaurant := app.contextGetUser(r)
+
+	if restaurant.Id != restaurant_id {
+		app.notPermittedResponse(w, r)
 		return
 	}
 
@@ -197,10 +243,12 @@ func (app *application) deleteDishHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	err = os.Remove(dish.Photo)
-	if err != nil {
-		app.editConflictResponse(w, r)
-		return
+	if _, err := os.Stat(dish.Photo); err == nil {
+		err := os.Remove(dish.Photo)
+		if err != nil {
+			app.editConflictResponse(w, r)
+			return
+		}
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"message": "dish successfully deleted"}, nil)
@@ -210,10 +258,16 @@ func (app *application) deleteDishHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (app *application) listDishesHandler(w http.ResponseWriter, r *http.Request) {
+	restaurant_id, err := app.readIdParam(r, "restaurant_id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
 	var input struct {
-		Name      string
-		Category  []string
-		Available sql.NullBool
+		Name       string
+		Categories []string
+		Available  sql.NullBool
 		data.Filters
 	}
 
@@ -223,7 +277,7 @@ func (app *application) listDishesHandler(w http.ResponseWriter, r *http.Request
 
 	input.Name = app.readString(qs, "name", "")
 	input.Available = app.readBool(qs, "available", v)
-	input.Category = app.readCSV(qs, "category", []string{})
+	input.Categories = app.readCSV(qs, "categories", []string{})
 
 	input.Filters.Page = app.readInt(qs, "page", 1, v)
 	input.Filters.PageSize = app.readInt(qs, "page_size", 20, v)
@@ -237,7 +291,13 @@ func (app *application) listDishesHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	dishes, metadata, err := app.models.Dishes.GetAll(input.Name, input.Category, input.Available, input.Filters)
+	user := app.contextGetUser(r)
+	if user.Role == "restaurant" && user.Id != restaurant_id {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	dishes, metadata, err := app.models.Dishes.GetAllForRestaurant(restaurant_id, input.Name, input.Categories, input.Available, input.Filters)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -250,9 +310,22 @@ func (app *application) listDishesHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (app *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Request) {
-	id, err := app.readIdParam(r)
+	restaurant_id, err := app.readIdParam(r, "restaurant_id")
 	if err != nil {
 		app.notFoundResponse(w, r)
+		return
+	}
+
+	id, err := app.readIdParam(r, "id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	restaurant := app.contextGetUser(r)
+
+	if restaurant.Id != restaurant_id {
+		app.notPermittedResponse(w, r)
 		return
 	}
 
@@ -276,7 +349,7 @@ func (app *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Reques
 	fileName := strconv.FormatInt(int64(dish.Id), 10) + ".jpg"
 	folder := "images/dishes/"
 
-	err = app.storeImage(w, r, "images/dishes/", fileName)
+	err = app.storeImage(w, r, folder, fileName)
 	if err != nil {
 		app.badRequestResponse(w, r, err)
 		return
@@ -302,7 +375,7 @@ func (app *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (app *application) servePhotoHandler(w http.ResponseWriter, r *http.Request) {
-	id, err := app.readIdParam(r)
+	id, err := app.readIdParam(r, "id")
 	if err != nil {
 		app.notFoundResponse(w, r)
 		return

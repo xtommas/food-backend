@@ -27,6 +27,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 
 	user := &data.User{
 		Name:      input.Name,
+		Photo:     "",
 		Email:     input.Email,
 		Activated: false,
 		Role:      input.Role,
@@ -57,27 +58,37 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	err = app.models.Permissions.AddForUser(user.Id, "dishes:read")
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-
-	if user.Role != "customer" {
-		err = app.models.Permissions.AddForUser(user.Id, "dishes:write")
+	if user.Role == "restaurant" || user.Role == "admin" {
+		err = app.models.Permissions.AddForUser(user.Id, "dishes:read", "dishes:write")
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+	} else {
+		err = app.models.Permissions.AddForUser(user.Id, "dishes:read", "restaurant:read")
 		if err != nil {
 			app.serverErrorResponse(w, r, err)
 			return
 		}
 	}
 
-	token, err := app.models.Tokens.New(user.Id, 3*24*time.Hour, data.ScopeActivation)
+	var claims jwt.Claims
+	claims.Subject = strconv.FormatInt(user.Id, 10)
+	claims.Issued = jwt.NewNumericTime(time.Now())
+	claims.NotBefore = jwt.NewNumericTime(time.Now())
+	claims.Expires = jwt.NewNumericTime(time.Now().Add(24 * time.Hour))
+	claims.Issuer = "github.com/xtommas/food-backend"
+	claims.Audiences = []string{"github.com/xtommas/food-backend"}
+
+	claims.Set = map[string]interface{}{"scope": "activation"}
+
+	jwtBytes, err := claims.HMACSign(jwt.HS256, []byte(app.config.jwt.secret))
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	err = app.writeJSON(w, http.StatusAccepted, envelope{"user": user, "activation_token": token.Plaintext}, nil)
+	err = app.writeJSON(w, http.StatusAccepted, envelope{"user": user, "activation_token": string(jwtBytes)}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
@@ -93,27 +104,6 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 		app.badRequestResponse(w, r, err)
 		return
 	}
-
-	// validate the plaintext token provided by the client
-	// v := validator.New()
-
-	// if data.ValidateTokenPlaintext(v, input.TokenPlaintext); !v.Valid() {
-	// 	app.failedValidationResponse(w, r, v.Errors)
-	// 	return
-	// }
-
-	// // get the details of the user associated with the token
-	// user, err := app.models.Users.GetForToken(data.ScopeActivation, input.TokenPlaintext)
-	// if err != nil {
-	// 	switch {
-	// 	case errors.Is(err, data.ErrRecordNotFound):
-	// 		v.AddError("token", "invalid or expired activation token")
-	// 		app.failedValidationResponse(w, r, v.Errors)
-	// 	default:
-	// 		app.serverErrorResponse(w, r, err)
-	// 	}
-	// 	return
-	// }
 
 	claims, err := jwt.HMACCheck([]byte(input.TokenPlaintext), []byte(app.config.jwt.secret))
 	if err != nil {
@@ -171,12 +161,6 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 		}
 		return
 	}
-
-	// err = app.models.Tokens.DeleteAllForUser(data.ScopeActivation, user.Id)
-	// if err != nil {
-	// 	app.serverErrorResponse(w, r, err)
-	// 	return
-	// }
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
 	if err != nil {
@@ -239,18 +223,6 @@ func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http
 		return
 	}
 
-	// user, err := app.models.Users.GetForToken(data.ScopePasswordReset, input.TokenPlaintext)
-	// if err != nil {
-	// 	switch {
-	// 	case errors.Is(err, data.ErrRecordNotFound):
-	// 		v.AddError("token", "invalid or expired password reset token")
-	// 		app.failedValidationResponse(w, r, v.Errors)
-	// 	default:
-	// 		app.serverErrorResponse(w, r, err)
-	// 	}
-	// 	return
-	// }
-
 	user, err := app.models.Users.Get(userId)
 	if err != nil {
 		switch {
@@ -278,12 +250,6 @@ func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http
 		}
 		return
 	}
-
-	// err = app.models.Tokens.DeleteAllForUser(data.ScopePasswordReset, user.Id)
-	// if err != nil {
-	// 	app.serverErrorResponse(w, r, err)
-	// 	return
-	// }
 
 	env := envelope{"message": "your password was successfully reset"}
 
@@ -369,6 +335,19 @@ func (app *application) getUserDataHandler(w http.ResponseWriter, r *http.Reques
 	user := app.contextGetUser(r)
 
 	err := app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) listRestaurantsHandler(w http.ResponseWriter, r *http.Request) {
+	restaurants, err := app.models.Users.GetRestaurants()
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"restaurants": restaurants}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

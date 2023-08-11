@@ -55,12 +55,6 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 		return
 	}
 
-	// token, err := app.models.Tokens.New(user.Id, 24*time.Hour, data.ScopeAuthentication)
-	// if err != nil {
-	// 	app.serverErrorResponse(w, r, err)
-	// 	return
-	// }
-
 	var claims jwt.Claims
 	claims.Subject = strconv.FormatInt(user.Id, 10)
 	claims.Issued = jwt.NewNumericTime(time.Now())
@@ -119,12 +113,6 @@ func (app *application) createPasswordResetTokenHandler(w http.ResponseWriter, r
 		return
 	}
 
-	// token, err := app.models.Tokens.New(user.Id, 45*time.Minute, data.ScopePasswordReset)
-	// if err != nil {
-	// 	app.serverErrorResponse(w, r, err)
-	// 	return
-	// }
-
 	var claims jwt.Claims
 	claims.Subject = strconv.FormatInt(user.Id, 10)
 	claims.Issued = jwt.NewNumericTime(time.Now())
@@ -182,12 +170,6 @@ func (app *application) createActivationTokenHandler(w http.ResponseWriter, r *h
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
-
-	// token, err := app.models.Tokens.New(user.Id, 3*24*time.Hour, data.ScopeActivation)
-	// if err != nil {
-	// 	app.serverErrorResponse(w, r, err)
-	// 	return
-	// }
 
 	var claims jwt.Claims
 	claims.Subject = strconv.FormatInt(user.Id, 10)
