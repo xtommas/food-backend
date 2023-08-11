@@ -3,8 +3,10 @@ package main
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/pascaldekloe/jwt"
 	"github.com/xtommas/food-backend/internal/data"
 	"github.com/xtommas/food-backend/internal/validator"
 )
@@ -53,13 +55,29 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 		return
 	}
 
-	token, err := app.models.Tokens.New(user.Id, 24*time.Hour, data.ScopeAuthentication)
+	// token, err := app.models.Tokens.New(user.Id, 24*time.Hour, data.ScopeAuthentication)
+	// if err != nil {
+	// 	app.serverErrorResponse(w, r, err)
+	// 	return
+	// }
+
+	var claims jwt.Claims
+	claims.Subject = strconv.FormatInt(user.Id, 10)
+	claims.Issued = jwt.NewNumericTime(time.Now())
+	claims.NotBefore = jwt.NewNumericTime(time.Now())
+	claims.Expires = jwt.NewNumericTime(time.Now().Add(24 * time.Hour))
+	claims.Issuer = "github.com/xtommas/food-backend"
+	claims.Audiences = []string{"github.com/xtommas/food-backend"}
+
+	claims.Set = map[string]interface{}{"scope": "authentication"}
+
+	jwtBytes, err := claims.HMACSign(jwt.HS256, []byte(app.config.jwt.secret))
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	err = app.writeJSON(w, http.StatusCreated, envelope{"authentication_token": token}, nil)
+	err = app.writeJSON(w, http.StatusCreated, envelope{"authentication_token": string(jwtBytes)}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
@@ -101,15 +119,29 @@ func (app *application) createPasswordResetTokenHandler(w http.ResponseWriter, r
 		return
 	}
 
-	token, err := app.models.Tokens.New(user.Id, 45*time.Minute, data.ScopePasswordReset)
+	// token, err := app.models.Tokens.New(user.Id, 45*time.Minute, data.ScopePasswordReset)
+	// if err != nil {
+	// 	app.serverErrorResponse(w, r, err)
+	// 	return
+	// }
+
+	var claims jwt.Claims
+	claims.Subject = strconv.FormatInt(user.Id, 10)
+	claims.Issued = jwt.NewNumericTime(time.Now())
+	claims.NotBefore = jwt.NewNumericTime(time.Now())
+	claims.Expires = jwt.NewNumericTime(time.Now().Add(10 * time.Minute))
+	claims.Issuer = "github.com/xtommas/food-backend"
+	claims.Audiences = []string{"github.com/xtommas/food-backend"}
+
+	claims.Set = map[string]interface{}{"scope": "password-reset"}
+
+	jwtBytes, err := claims.HMACSign(jwt.HS256, []byte(app.config.jwt.secret))
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	env := envelope{"password_reset_token": token.Plaintext}
-
-	err = app.writeJSON(w, http.StatusAccepted, env, nil)
+	err = app.writeJSON(w, http.StatusAccepted, envelope{"password_reset_token": string(jwtBytes)}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
@@ -151,13 +183,29 @@ func (app *application) createActivationTokenHandler(w http.ResponseWriter, r *h
 		return
 	}
 
-	token, err := app.models.Tokens.New(user.Id, 3*24*time.Hour, data.ScopeActivation)
+	// token, err := app.models.Tokens.New(user.Id, 3*24*time.Hour, data.ScopeActivation)
+	// if err != nil {
+	// 	app.serverErrorResponse(w, r, err)
+	// 	return
+	// }
+
+	var claims jwt.Claims
+	claims.Subject = strconv.FormatInt(user.Id, 10)
+	claims.Issued = jwt.NewNumericTime(time.Now())
+	claims.NotBefore = jwt.NewNumericTime(time.Now())
+	claims.Expires = jwt.NewNumericTime(time.Now().Add(24 * time.Hour))
+	claims.Issuer = "github.com/xtommas/food-backend"
+	claims.Audiences = []string{"github.com/xtommas/food-backend"}
+
+	claims.Set = map[string]interface{}{"scope": "activation"}
+
+	jwtBytes, err := claims.HMACSign(jwt.HS256, []byte(app.config.jwt.secret))
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	env := envelope{"activation_token": token.Plaintext}
+	env := envelope{"activation_token": string(jwtBytes)}
 
 	err = app.writeJSON(w, http.StatusAccepted, env, nil)
 	if err != nil {

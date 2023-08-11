@@ -3,8 +3,10 @@ package main
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/pascaldekloe/jwt"
 	"github.com/xtommas/food-backend/internal/data"
 	"github.com/xtommas/food-backend/internal/validator"
 )
@@ -93,20 +95,64 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	// validate the plaintext token provided by the client
-	v := validator.New()
+	// v := validator.New()
 
-	if data.ValidateTokenPlaintext(v, input.TokenPlaintext); !v.Valid() {
-		app.failedValidationResponse(w, r, v.Errors)
+	// if data.ValidateTokenPlaintext(v, input.TokenPlaintext); !v.Valid() {
+	// 	app.failedValidationResponse(w, r, v.Errors)
+	// 	return
+	// }
+
+	// // get the details of the user associated with the token
+	// user, err := app.models.Users.GetForToken(data.ScopeActivation, input.TokenPlaintext)
+	// if err != nil {
+	// 	switch {
+	// 	case errors.Is(err, data.ErrRecordNotFound):
+	// 		v.AddError("token", "invalid or expired activation token")
+	// 		app.failedValidationResponse(w, r, v.Errors)
+	// 	default:
+	// 		app.serverErrorResponse(w, r, err)
+	// 	}
+	// 	return
+	// }
+
+	claims, err := jwt.HMACCheck([]byte(input.TokenPlaintext), []byte(app.config.jwt.secret))
+	if err != nil {
+		app.invalidAuthenticationTokenResponse(w, r)
 		return
 	}
 
-	// get the details of the user associated with the token
-	user, err := app.models.Users.GetForToken(data.ScopeActivation, input.TokenPlaintext)
+	if !claims.Valid(time.Now()) {
+		app.invalidAuthenticationTokenResponse(w, r)
+		return
+	}
+
+	if claims.Issuer != "github.com/xtommas/food-backend" {
+		app.invalidAuthenticationTokenResponse(w, r)
+		return
+	}
+
+	if !claims.AcceptAudience("github.com/xtommas/food-backend") {
+		app.invalidAuthenticationTokenResponse(w, r)
+		return
+	}
+
+	scope, _ := claims.Set["scope"].(string)
+	if scope != "activation" {
+		app.invalidAuthenticationTokenResponse(w, r)
+		return
+	}
+
+	userId, err := strconv.ParseInt(claims.Subject, 10, 64)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	user, err := app.models.Users.Get(userId)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
-			v.AddError("token", "invalid or expired activation token")
-			app.failedValidationResponse(w, r, v.Errors)
+			app.invalidAuthenticationTokenResponse(w, r)
 		default:
 			app.serverErrorResponse(w, r, err)
 		}
@@ -126,11 +172,11 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	err = app.models.Tokens.DeleteAllForUser(data.ScopeActivation, user.Id)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
+	// err = app.models.Tokens.DeleteAllForUser(data.ScopeActivation, user.Id)
+	// if err != nil {
+	// 	app.serverErrorResponse(w, r, err)
+	// 	return
+	// }
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
 	if err != nil {
@@ -153,19 +199,63 @@ func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http
 	v := validator.New()
 
 	data.ValidatePasswordPlaintext(v, input.Password)
-	data.ValidateTokenPlaintext(v, input.TokenPlaintext)
+	//data.ValidateTokenPlaintext(v, input.TokenPlaintext)
 
 	if !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	user, err := app.models.Users.GetForToken(data.ScopePasswordReset, input.TokenPlaintext)
+	claims, err := jwt.HMACCheck([]byte(input.TokenPlaintext), []byte(app.config.jwt.secret))
+	if err != nil {
+		app.invalidAuthenticationTokenResponse(w, r)
+		return
+	}
+
+	if !claims.Valid(time.Now()) {
+		app.invalidAuthenticationTokenResponse(w, r)
+		return
+	}
+
+	if claims.Issuer != "github.com/xtommas/food-backend" {
+		app.invalidAuthenticationTokenResponse(w, r)
+		return
+	}
+
+	if !claims.AcceptAudience("github.com/xtommas/food-backend") {
+		app.invalidAuthenticationTokenResponse(w, r)
+		return
+	}
+
+	scope, _ := claims.Set["scope"].(string)
+	if scope != "password-reset" {
+		app.invalidAuthenticationTokenResponse(w, r)
+		return
+	}
+
+	userId, err := strconv.ParseInt(claims.Subject, 10, 64)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	// user, err := app.models.Users.GetForToken(data.ScopePasswordReset, input.TokenPlaintext)
+	// if err != nil {
+	// 	switch {
+	// 	case errors.Is(err, data.ErrRecordNotFound):
+	// 		v.AddError("token", "invalid or expired password reset token")
+	// 		app.failedValidationResponse(w, r, v.Errors)
+	// 	default:
+	// 		app.serverErrorResponse(w, r, err)
+	// 	}
+	// 	return
+	// }
+
+	user, err := app.models.Users.Get(userId)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
-			v.AddError("token", "invalid or expired password reset token")
-			app.failedValidationResponse(w, r, v.Errors)
+			app.invalidAuthenticationTokenResponse(w, r)
 		default:
 			app.serverErrorResponse(w, r, err)
 		}
@@ -189,11 +279,11 @@ func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http
 		return
 	}
 
-	err = app.models.Tokens.DeleteAllForUser(data.ScopePasswordReset, user.Id)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
+	// err = app.models.Tokens.DeleteAllForUser(data.ScopePasswordReset, user.Id)
+	// if err != nil {
+	// 	app.serverErrorResponse(w, r, err)
+	// 	return
+	// }
 
 	env := envelope{"message": "your password was successfully reset"}
 
