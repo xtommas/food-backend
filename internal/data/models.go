@@ -15,6 +15,7 @@ type Models struct {
 	Users       UserModel
 	Permissions PermissionModel
 	Tokens      TokenModel
+	Orders      OrderModel
 }
 
 func NewModels(db *sql.DB) Models {
@@ -23,5 +24,6 @@ func NewModels(db *sql.DB) Models {
 		Users:       UserModel{DB: db},
 		Permissions: PermissionModel{DB: db},
 		Tokens:      TokenModel{DB: db},
+		Orders:      OrderModel{DB: db},
 	}
 }
