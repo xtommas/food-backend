@@ -210,11 +210,12 @@ func (m UserModel) GetRestaurants() ([]*User, error) {
 func (m UserModel) Update(user *User) error {
 	query := `
 		UPDATE users
-		SET name = $1, email = $2, password_hash = $3, activated = $4, version = version + 1, role = $7
-		WHERE id = $5 AND version = $6
+		SET photo = $1, name = $2, email = $3, password_hash = $4, activated = $5, version = version + 1, role = $8
+		WHERE id = $6 AND version = $7
 		RETURNING version`
 
 	args := []interface{}{
+		user.Photo,
 		user.Name,
 		user.Email,
 		user.Password.hash,

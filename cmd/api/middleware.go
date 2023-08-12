@@ -110,24 +110,6 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 
 		token := headerParts[1]
 
-		// v := validator.New()
-
-		// if data.ValidateTokenPlaintext(v, token); !v.Valid() {
-		// 	app.invalidAuthenticationTokenResponse(w, r)
-		// 	return
-		// }
-
-		// user, err := app.models.Users.GetForToken(data.ScopeAuthentication, token)
-		// if err != nil {
-		// 	switch {
-		// 	case errors.Is(err, data.ErrRecordNotFound):
-		// 		app.invalidAuthenticationTokenResponse(w, r)
-		// 	default:
-		// 		app.serverErrorResponse(w, r, err)
-		// 	}
-		// 	return
-		// }
-
 		claims, err := jwt.HMACCheck([]byte(token), []byte(app.config.jwt.secret))
 		if err != nil {
 			app.invalidAuthenticationTokenResponse(w, r)

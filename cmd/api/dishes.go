@@ -349,13 +349,11 @@ func (app *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Reques
 	fileName := strconv.FormatInt(int64(dish.Id), 10) + ".jpg"
 	folder := "images/dishes/"
 
-	err = app.storeImage(w, r, folder, fileName)
+	dish.Photo, err = app.storeImage(w, r, folder, fileName)
 	if err != nil {
 		app.badRequestResponse(w, r, err)
 		return
 	}
-
-	dish.Photo = folder + fileName
 
 	err = app.models.Dishes.Update(dish)
 	if err != nil {

@@ -2,7 +2,11 @@ package main
 
 import (
 	"errors"
+	"io"
+	"mime"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -348,6 +352,67 @@ func (app *application) listRestaurantsHandler(w http.ResponseWriter, r *http.Re
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"restaurants": restaurants}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) uploadUserPhotoHandler(w http.ResponseWriter, r *http.Request) {
+	user := app.contextGetUser(r)
+
+	err := r.ParseMultipartForm(10 << 20) //limit size to 10 MB
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	fileName := strconv.FormatInt(int64(user.Id), 10) + ".jpg"
+	folder := "images/users/"
+
+	user.Photo, err = app.storeImage(w, r, folder, fileName)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	err = app.models.Users.Update(user)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) serveUserPhotoHandler(w http.ResponseWriter, r *http.Request) {
+	user := app.contextGetUser(r)
+
+	imagePath := user.Photo
+
+	// Open the image file
+	imageFile, err := os.Open(imagePath)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+	defer imageFile.Close()
+
+	// Get the image's content type
+	contentType := mime.TypeByExtension(filepath.Ext(imagePath))
+
+	// Set the content type header
+	w.Header().Set("Content-Type", contentType)
+
+	// Copy the image contents to the response
+	_, err = io.Copy(w, imageFile)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

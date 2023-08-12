@@ -32,7 +32,8 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPut, "/users/password", app.updateUserPasswordHandler)
 	router.HandlerFunc(http.MethodPut, "/users/role", app.requireAdmin(app.updateUserRoleHandler))
 	router.HandlerFunc(http.MethodGet, "/users/me", app.requireActivatedUser(app.getUserDataHandler))
-	// MAKE USER PHOTO ENDPOINTS
+	router.HandlerFunc(http.MethodPost, "/users/me/photo", app.requireActivatedUser(app.uploadUserPhotoHandler))
+	router.HandlerFunc(http.MethodGet, "/users/me/photo", app.requireActivatedUser(app.serveUserPhotoHandler))
 
 	// tokens edpoints
 	router.HandlerFunc(http.MethodPost, "/tokens/authentication", app.createAuthenticationTokenHandler)

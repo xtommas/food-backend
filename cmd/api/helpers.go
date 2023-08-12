@@ -166,10 +166,10 @@ func (app *application) readBool(queryString url.Values, key string, v *validato
 	return availableBool
 }
 
-func (app *application) storeImage(w http.ResponseWriter, r *http.Request, folder string, fileName string) error {
+func (app *application) storeImage(w http.ResponseWriter, r *http.Request, folder string, fileName string) (string, error) {
 	image, _, err := r.FormFile("photo")
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer image.Close()
 
@@ -177,22 +177,22 @@ func (app *application) storeImage(w http.ResponseWriter, r *http.Request, folde
 	if err == nil {
 		err := os.Remove(folder + fileName)
 		if err != nil {
-			return err
+			return "", err
 		}
 	} else if !os.IsNotExist(err) {
-		return err
+		return "", err
 	}
 
 	newImage, err := os.Create(folder + fileName)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer newImage.Close()
 
 	_, err = io.Copy(newImage, image)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return folder + fileName, nil
 }
