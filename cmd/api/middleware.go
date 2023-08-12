@@ -212,11 +212,11 @@ func (app *application) requirePermission(code string, next http.HandlerFunc) ht
 	return app.requireActivatedUser(fn)
 }
 
-func (app *application) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
+func (app *application) requireRole(role string, next http.HandlerFunc) http.HandlerFunc {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		user := app.contextGetUser(r)
 
-		if user.Role != "admin" {
+		if user.Role != role {
 			app.notPermittedResponse(w, r)
 			return
 		}

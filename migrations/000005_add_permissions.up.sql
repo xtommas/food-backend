@@ -11,4 +11,4 @@ CREATE TABLE IF NOT EXISTS users_permissions (
 
 -- Add the permissions to the table
 INSERT INTO permissions (code)
-VALUES ('dishes:read'), ('dishes:write'), ('restaurants:read');
+VALUES ('dishes:read'), ('dishes:write'), ('restaurants:read'), ('orders:write'), ('orders:read');

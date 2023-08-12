@@ -30,11 +30,30 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPost, "/users", app.registerUserHandler)
 	router.HandlerFunc(http.MethodPut, "/users/activate", app.activateUserHandler)
 	router.HandlerFunc(http.MethodPut, "/users/password", app.updateUserPasswordHandler)
-	router.HandlerFunc(http.MethodPut, "/users/role", app.requireAdmin(app.updateUserRoleHandler))
+	router.HandlerFunc(http.MethodPut, "/users/role", app.requireRole("admin", app.updateUserRoleHandler))
 	router.HandlerFunc(http.MethodGet, "/users/me", app.requireActivatedUser(app.getUserDataHandler))
 	router.HandlerFunc(http.MethodPost, "/users/me/photo", app.requireActivatedUser(app.uploadUserPhotoHandler))
 	router.HandlerFunc(http.MethodGet, "/users/me/photo", app.requireActivatedUser(app.serveUserPhotoHandler))
 	router.HandlerFunc(http.MethodPatch, "/users/me", app.requireActivatedUser(app.updateUserHandler))
+
+	// orders endpoints
+	// POST /restaurants/:restaurant_id/orders
+
+	// GET /restaurants/:restaurant_id/orders
+
+	// GET users/me/orders
+
+	// GET /restaurants/:restaurant_id/orders/:orders_id
+
+	// PATCH /restaurants/:restaurant_id/orders/:order_id (udpate status)
+
+	// POST /restaurants/:restaurant_id/orders/:order_id/items
+
+	// GET /restaurants/:retaurant_id/orders/:order_id/items
+
+	// GET /users/me/orders/history
+
+	// GET /restaurants/:restaurant_id/orders/history
 
 	// tokens edpoints
 	router.HandlerFunc(http.MethodPost, "/tokens/authentication", app.createAuthenticationTokenHandler)
