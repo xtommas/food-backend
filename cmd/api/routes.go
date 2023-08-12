@@ -34,6 +34,7 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/users/me", app.requireActivatedUser(app.getUserDataHandler))
 	router.HandlerFunc(http.MethodPost, "/users/me/photo", app.requireActivatedUser(app.uploadUserPhotoHandler))
 	router.HandlerFunc(http.MethodGet, "/users/me/photo", app.requireActivatedUser(app.serveUserPhotoHandler))
+	router.HandlerFunc(http.MethodPatch, "/users/me", app.requireActivatedUser(app.updateUserHandler))
 
 	// tokens edpoints
 	router.HandlerFunc(http.MethodPost, "/tokens/authentication", app.createAuthenticationTokenHandler)
