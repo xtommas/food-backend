@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -11,6 +12,22 @@ import (
 func (app *application) createOrderHandler(w http.ResponseWriter, r *http.Request) {
 	restaurant_id, err := app.readIdParam(r, "restaurant_id")
 	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	restaurant, err := app.models.Users.Get(restaurant_id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	if restaurant.Role != "restaurant" {
 		app.notFoundResponse(w, r)
 		return
 	}
@@ -53,6 +70,54 @@ func (app *application) createOrderHandler(w http.ResponseWriter, r *http.Reques
 	headers.Set("Location", fmt.Sprintf("/restaurant/%d/orders/orders/%d", order.Restaurant_id, order.Id))
 
 	err = app.writeJSON(w, http.StatusCreated, envelope{"order": order}, headers)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) getOrdersForRestaurantHandler(w http.ResponseWriter, r *http.Request) {
+	restaurant_id, err := app.readIdParam(r, "restaurant_id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	var input struct {
+		Status string
+		data.Filters
+	}
+
+	v := validator.New()
+
+	qs := r.URL.Query()
+
+	input.Status = app.readString(qs, "status", "")
+
+	input.Filters.Page = app.readInt(qs, "page", 1, v)
+	input.Filters.PageSize = app.readInt(qs, "page_size", 50, v)
+
+	input.Filters.Sort = app.readString(qs, "sort", "id")
+
+	input.Filters.SortSafelist = []string{"id", "price", "status", "-id", "-price", "-status"}
+
+	if data.ValidateFilters(v, input.Filters); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	user := app.contextGetUser(r)
+	if user.Id != restaurant_id {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	orders, metadata, err := app.models.Orders.GetAllForRestaurant(restaurant_id, input.Status, input.Filters)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"orders": orders, "metadata": metadata}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

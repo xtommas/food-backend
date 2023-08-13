@@ -40,7 +40,7 @@ func (app *application) routes() http.Handler {
 	// POST /restaurants/:restaurant_id/orders
 	router.HandlerFunc(http.MethodPost, "/restaurants/:restaurant_id/orders", app.requireRole("customer", app.createOrderHandler))
 	// GET /restaurants/:restaurant_id/orders
-
+	router.HandlerFunc(http.MethodGet, "/restaurants/:restaurant_id/orders", app.requireRole("restaurant", app.getOrdersForRestaurantHandler))
 	// GET users/me/orders
 
 	// GET /restaurants/:restaurant_id/orders/:orders_id

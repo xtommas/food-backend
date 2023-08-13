@@ -86,6 +86,22 @@ func (app *application) showDishHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	restaurant, err := app.models.Users.Get(restaurant_id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	if restaurant.Role != "restaurant" {
+		app.notFoundResponse(w, r)
+		return
+	}
+
 	dish, err := app.models.Dishes.GetForRestaurant(id, restaurant_id)
 	if err != nil {
 		switch {
@@ -271,6 +287,22 @@ func (app *application) listDishesHandler(w http.ResponseWriter, r *http.Request
 		data.Filters
 	}
 
+	restaurant, err := app.models.Users.Get(restaurant_id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	if restaurant.Role != "restaurant" {
+		app.notFoundResponse(w, r)
+		return
+	}
+
 	v := validator.New()
 
 	qs := r.URL.Query()
@@ -373,8 +405,30 @@ func (app *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (app *application) servePhotoHandler(w http.ResponseWriter, r *http.Request) {
+	restaurant_id, err := app.readIdParam(r, "restaurant_id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
 	id, err := app.readIdParam(r, "id")
 	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	restaurant, err := app.models.Users.Get(restaurant_id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	if restaurant.Role != "restaurant" {
 		app.notFoundResponse(w, r)
 		return
 	}
