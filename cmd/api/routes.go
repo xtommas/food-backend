@@ -54,7 +54,7 @@ func (app *application) routes() http.Handler {
 	// GET /restaurants/:retaurant_id/orders/:order_id/items
 	router.HandlerFunc(http.MethodGet, "/restaurants/:restaurant_id/orders/:order_id/items", app.requireRole("restaurant", app.getOrderItemsHandler))
 	// GET /users/me/orders/:order_id/items
-
+	router.HandlerFunc(http.MethodGet, "/users/me/orders/:order_id/items", app.requireRole("customer", app.getUserOrderItemsHandler))
 	// GET /restaurants/:restaurant_id/orders/history
 
 	// tokens edpoints
