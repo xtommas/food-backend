@@ -94,6 +94,19 @@ func (app *application) createOrderItemHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	order.Total += order_item.Subtotal
+
+	err = app.models.Orders.Update(order)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
 	headers := make(http.Header)
 	headers.Set("Location", fmt.Sprintf("/restaurant/%d/orders/orders/%d/items/%d", restaurant_id, order_id, order_item.Id))
 

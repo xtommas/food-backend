@@ -35,8 +35,7 @@ func (app *application) createOrderHandler(w http.ResponseWriter, r *http.Reques
 	user := app.contextGetUser(r)
 
 	var input struct {
-		Total   data.Price `json:"price"`
-		Address string     `json:"address"`
+		Address string `json:"address"`
 	}
 
 	err = app.readJSON(w, r, &input)
@@ -48,7 +47,7 @@ func (app *application) createOrderHandler(w http.ResponseWriter, r *http.Reques
 	order := &data.Order{
 		User_id:       user.Id,
 		Restaurant_id: restaurant_id,
-		Total:         input.Total,
+		Total:         0,
 		Address:       input.Address,
 		Status:        "created",
 	}
@@ -271,7 +270,43 @@ func (app *application) getSingleOrderForRestaurantHandler(w http.ResponseWriter
 		return
 	}
 
-	err = app.writeJSON(w, http.StatusOK, envelope{"order": order}, nil)
+	type order_item struct {
+		Name     string     `json:"dish"`
+		Quantity int        `json:"quantity"`
+		Subtotal data.Price `json:"subtotal"`
+	}
+
+	type fullOrder struct {
+		Order data.Order   `json:"order"`
+		Items []order_item `json:"items"`
+	}
+
+	orderItems := []order_item{}
+
+	items, err := app.models.OrderItems.GetForOrder(order.Id)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	for _, item := range items {
+		dish, err := app.models.Dishes.Get(item.Dish_id)
+		if err != nil {
+			switch {
+			case errors.Is(err, data.ErrRecordNotFound):
+				app.notFoundResponse(w, r)
+			default:
+				app.serverErrorResponse(w, r, err)
+			}
+			return
+		}
+
+		orderItems = append(orderItems, order_item{Name: dish.Name, Quantity: item.Quantity, Subtotal: item.Subtotal})
+	}
+
+	detailedOrder := fullOrder{Order: *order, Items: orderItems}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"order": detailedOrder}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
@@ -296,7 +331,43 @@ func (app *application) getSingleOrderForUserHandler(w http.ResponseWriter, r *h
 		return
 	}
 
-	err = app.writeJSON(w, http.StatusOK, envelope{"order": order}, nil)
+	type order_item struct {
+		Name     string     `json:"dish"`
+		Quantity int        `json:"quantity"`
+		Subtotal data.Price `json:"subtotal"`
+	}
+
+	type fullOrder struct {
+		Order data.Order   `json:"order"`
+		Items []order_item `json:"items"`
+	}
+
+	orderItems := []order_item{}
+
+	items, err := app.models.OrderItems.GetForOrder(order.Id)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	for _, item := range items {
+		dish, err := app.models.Dishes.Get(item.Dish_id)
+		if err != nil {
+			switch {
+			case errors.Is(err, data.ErrRecordNotFound):
+				app.notFoundResponse(w, r)
+			default:
+				app.serverErrorResponse(w, r, err)
+			}
+			return
+		}
+
+		orderItems = append(orderItems, order_item{Name: dish.Name, Quantity: item.Quantity, Subtotal: item.Subtotal})
+	}
+
+	detailedOrder := fullOrder{Order: *order, Items: orderItems}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"order": detailedOrder}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
