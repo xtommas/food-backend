@@ -102,3 +102,69 @@ func (app *application) createOrderItemHandler(w http.ResponseWriter, r *http.Re
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+func (app *application) getOrderItemsHandler(w http.ResponseWriter, r *http.Request) {
+	restaurant_id, err := app.readIdParam(r, "restaurant_id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	order_id, err := app.readIdParam(r, "order_id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	restaurant := app.contextGetUser(r)
+
+	if restaurant.Id != restaurant_id {
+		app.notPermittedResponse(w, r)
+		return
+	}
+
+	order, err := app.models.Orders.GetForRestaurant(order_id, restaurant_id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	items, err := app.models.OrderItems.GetForOrder(order.Id)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	type order_item struct {
+		Name     string     `json:"dish"`
+		Quantity int        `json:"quantity"`
+		Subtotal data.Price `json:"subtotal"`
+	}
+
+	order_items := []order_item{}
+
+	for _, item := range items {
+		dish, err := app.models.Dishes.Get(item.Dish_id)
+		if err != nil {
+			switch {
+			case errors.Is(err, data.ErrRecordNotFound):
+				app.notFoundResponse(w, r)
+			default:
+				app.serverErrorResponse(w, r, err)
+			}
+			return
+		}
+
+		order_items = append(order_items, order_item{Name: dish.Name, Quantity: item.Quantity, Subtotal: item.Subtotal})
+	}
+
+	err = app.writeJSON(w, http.StatusCreated, envelope{"items": order_items}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}

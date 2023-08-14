@@ -74,7 +74,7 @@ func (i OrderItemModel) Update(orderItem *OrderItem) error {
 	return nil
 }
 
-func (i OrderItemModel) GetForOrder(order_id string) ([]*OrderItem, error) {
+func (i OrderItemModel) GetForOrder(order_id int64) ([]*OrderItem, error) {
 	query := `
 		SELECT id, order_id, dish_id, quantity, subtotal
 		FROM order_items
