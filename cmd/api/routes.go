@@ -30,32 +30,22 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPost, "/users", app.registerUserHandler)
 	router.HandlerFunc(http.MethodPut, "/users/activate", app.activateUserHandler)
 	router.HandlerFunc(http.MethodPut, "/users/password", app.updateUserPasswordHandler)
-	router.HandlerFunc(http.MethodPut, "/users/role", app.requireRole("admin", app.updateUserRoleHandler))
+	// router.HandlerFunc(http.MethodPut, "/users/role", app.requireRole("admin", app.updateUserRoleHandler))
 	router.HandlerFunc(http.MethodGet, "/users/me", app.requireActivatedUser(app.getUserDataHandler))
 	router.HandlerFunc(http.MethodPost, "/users/me/photo", app.requireActivatedUser(app.uploadUserPhotoHandler))
 	router.HandlerFunc(http.MethodGet, "/users/me/photo", app.requireActivatedUser(app.serveUserPhotoHandler))
 	router.HandlerFunc(http.MethodPatch, "/users/me", app.requireActivatedUser(app.updateUserHandler))
 
 	// orders endpoints
-	// POST /restaurants/:restaurant_id/orders
 	router.HandlerFunc(http.MethodPost, "/restaurants/:restaurant_id/orders", app.requireRole("customer", app.createOrderHandler))
-	// GET /restaurants/:restaurant_id/orders
 	router.HandlerFunc(http.MethodGet, "/restaurants/:restaurant_id/orders", app.requireRole("restaurant", app.getOrdersForRestaurantHandler))
-	// GET users/me/orders
 	router.HandlerFunc(http.MethodGet, "/users/me/orders", app.requireRole("customer", app.getOrdersForUserHandler))
-	// GET /restaurants/:restaurant_id/orders/:order_id
 	router.HandlerFunc(http.MethodGet, "/restaurants/:restaurant_id/orders/:order_id", app.requireRole("restaurant", app.getSingleOrderForRestaurantHandler))
-	// GET users/me/orders/:order_id
 	router.HandlerFunc(http.MethodGet, "/users/me/orders/:order_id", app.requireRole("customer", app.getSingleOrderForUserHandler))
-	// PATCH /restaurants/:restaurant_id/orders/:order_id (udpate status)
 	router.HandlerFunc(http.MethodPatch, "/restaurants/:restaurant_id/orders/:order_id", app.requireRole("restaurant", app.updateOrderHandler))
-	// POST /restaurants/:restaurant_id/orders/:order_id/items
 	router.HandlerFunc(http.MethodPost, "/restaurants/:restaurant_id/orders/:order_id/items", app.requireRole("customer", app.createOrderItemHandler))
-	// GET /restaurants/:retaurant_id/orders/:order_id/items
 	router.HandlerFunc(http.MethodGet, "/restaurants/:restaurant_id/orders/:order_id/items", app.requireRole("restaurant", app.getOrderItemsHandler))
-	// GET /users/me/orders/:order_id/items
 	router.HandlerFunc(http.MethodGet, "/users/me/orders/:order_id/items", app.requireRole("customer", app.getUserOrderItemsHandler))
-	// GET /restaurants/:restaurant_id/orders/history
 
 	// tokens edpoints
 	router.HandlerFunc(http.MethodPost, "/tokens/authentication", app.createAuthenticationTokenHandler)

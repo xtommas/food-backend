@@ -78,7 +78,7 @@ func ValidatePasswordPlaintext(v *validator.Validator, password string) {
 
 func ValidateRole(v *validator.Validator, role string) {
 	v.Check(role != "", "role", "must be provided")
-	v.Check(role == "admin" || role == "customer" || role == "restaurant", "role", "invalid role")
+	v.Check(role == "customer" || role == "restaurant", "role", "invalid role")
 }
 
 func ValidateUser(v *validator.Validator, user *User) {
