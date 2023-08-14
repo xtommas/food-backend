@@ -221,3 +221,72 @@ func (app *application) getSingleOrderForUserHandler(w http.ResponseWriter, r *h
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+func (app *application) updateOrderHandler(w http.ResponseWriter, r *http.Request) {
+	restaurant_id, err := app.readIdParam(r, "restaurant_id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	order_id, err := app.readIdParam(r, "order_id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	restaurant := app.contextGetUser(r)
+
+	if restaurant.Id != restaurant_id {
+		app.notPermittedResponse(w, r)
+		return
+	}
+
+	order, err := app.models.Orders.GetForRestaurant(order_id, restaurant_id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	var input struct {
+		Status *string
+	}
+
+	err = app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	if input.Status != nil {
+		order.Status = *input.Status
+	}
+
+	v := validator.New()
+
+	if data.ValidateOrder(v, order); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	err = app.models.Orders.Update(order)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"order": order}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
