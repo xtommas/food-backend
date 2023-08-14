@@ -117,7 +117,47 @@ func (app *application) getOrdersForRestaurantHandler(w http.ResponseWriter, r *
 		return
 	}
 
-	err = app.writeJSON(w, http.StatusOK, envelope{"orders": orders, "metadata": metadata}, nil)
+	type order_item struct {
+		Name     string     `json:"dish"`
+		Quantity int        `json:"quantity"`
+		Subtotal data.Price `json:"subtotal"`
+	}
+
+	type fullOrder struct {
+		Order data.Order   `json:"order"`
+		Items []order_item `json:"items"`
+	}
+
+	fullOrders := []fullOrder{}
+
+	for _, order := range orders {
+		items, err := app.models.OrderItems.GetForOrder(order.Id)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+
+		orderItems := []order_item{}
+
+		for _, item := range items {
+			dish, err := app.models.Dishes.Get(item.Dish_id)
+			if err != nil {
+				switch {
+				case errors.Is(err, data.ErrRecordNotFound):
+					app.notFoundResponse(w, r)
+				default:
+					app.serverErrorResponse(w, r, err)
+				}
+				return
+			}
+
+			orderItems = append(orderItems, order_item{Name: dish.Name, Quantity: item.Quantity, Subtotal: item.Subtotal})
+		}
+
+		fullOrders = append(fullOrders, fullOrder{Order: *order, Items: orderItems})
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"orders": fullOrders, "metadata": metadata}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
@@ -155,7 +195,47 @@ func (app *application) getOrdersForUserHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	err = app.writeJSON(w, http.StatusOK, envelope{"orders": orders, "metadata": metadata}, nil)
+	type order_item struct {
+		Name     string     `json:"dish"`
+		Quantity int        `json:"quantity"`
+		Subtotal data.Price `json:"subtotal"`
+	}
+
+	type fullOrder struct {
+		Order data.Order   `json:"order"`
+		Items []order_item `json:"items"`
+	}
+
+	fullOrders := []fullOrder{}
+
+	for _, order := range orders {
+		items, err := app.models.OrderItems.GetForOrder(order.Id)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+
+		orderItems := []order_item{}
+
+		for _, item := range items {
+			dish, err := app.models.Dishes.Get(item.Dish_id)
+			if err != nil {
+				switch {
+				case errors.Is(err, data.ErrRecordNotFound):
+					app.notFoundResponse(w, r)
+				default:
+					app.serverErrorResponse(w, r, err)
+				}
+				return
+			}
+
+			orderItems = append(orderItems, order_item{Name: dish.Name, Quantity: item.Quantity, Subtotal: item.Subtotal})
+		}
+
+		fullOrders = append(fullOrders, fullOrder{Order: *order, Items: orderItems})
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"orders": fullOrders, "metadata": metadata}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
