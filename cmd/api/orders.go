@@ -122,3 +122,41 @@ func (app *application) getOrdersForRestaurantHandler(w http.ResponseWriter, r *
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+func (app *application) getOrdersForUserHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Status string
+		data.Filters
+	}
+
+	v := validator.New()
+
+	qs := r.URL.Query()
+
+	input.Status = app.readString(qs, "status", "")
+
+	input.Filters.Page = app.readInt(qs, "page", 1, v)
+	input.Filters.PageSize = app.readInt(qs, "page_size", 50, v)
+
+	input.Filters.Sort = app.readString(qs, "sort", "id")
+
+	input.Filters.SortSafelist = []string{"id", "price", "status", "-id", "-price", "-status"}
+
+	if data.ValidateFilters(v, input.Filters); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	user := app.contextGetUser(r)
+
+	orders, metadata, err := app.models.Orders.GetAllForUser(user.Id, input.Status, input.Filters)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"orders": orders, "metadata": metadata}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}

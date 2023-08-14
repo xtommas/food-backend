@@ -42,7 +42,7 @@ func (app *application) routes() http.Handler {
 	// GET /restaurants/:restaurant_id/orders
 	router.HandlerFunc(http.MethodGet, "/restaurants/:restaurant_id/orders", app.requireRole("restaurant", app.getOrdersForRestaurantHandler))
 	// GET users/me/orders
-
+	router.HandlerFunc(http.MethodGet, "/users/me/orders", app.requireRole("customer", app.getOrdersForUserHandler))
 	// GET /restaurants/:restaurant_id/orders/:orders_id
 
 	// PATCH /restaurants/:restaurant_id/orders/:order_id (udpate status)
