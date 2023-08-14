@@ -50,7 +50,7 @@ func (app *application) routes() http.Handler {
 	// PATCH /restaurants/:restaurant_id/orders/:order_id (udpate status)
 	router.HandlerFunc(http.MethodPatch, "/restaurants/:restaurant_id/orders/:order_id", app.requireRole("restaurant", app.updateOrderHandler))
 	// POST /restaurants/:restaurant_id/orders/:order_id/items
-
+	router.HandlerFunc(http.MethodPost, "/restaurants/:restaurant_id/orders/:order_id/items", app.requireRole("customer", app.createOrderItemHandler))
 	// GET /restaurants/:retaurant_id/orders/:order_id/items
 
 	// GET /users/me/orders/history

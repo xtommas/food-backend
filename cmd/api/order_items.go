@@ -1,0 +1,104 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+
+	"github.com/xtommas/food-backend/internal/data"
+	"github.com/xtommas/food-backend/internal/validator"
+)
+
+func (app *application) createOrderItemHandler(w http.ResponseWriter, r *http.Request) {
+	restaurant_id, err := app.readIdParam(r, "restaurant_id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	order_id, err := app.readIdParam(r, "order_id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	var input struct {
+		Dish_id  int64 `json:"dish_id"`
+		Quantity int   `json:"quantity"`
+	}
+
+	err = app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	dish, err := app.models.Dishes.Get(input.Dish_id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	if dish.Restaurant_id != restaurant_id {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	subtotal := dish.Price * data.Price(input.Quantity)
+
+	order_item := &data.OrderItem{
+		Order_id: order_id,
+		Dish_id:  input.Dish_id,
+		Quantity: input.Quantity,
+		Subtotal: subtotal,
+	}
+
+	v := validator.New()
+
+	if data.ValidateOrderItem(v, order_item); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	user := app.contextGetUser(r)
+
+	order, err := app.models.Orders.GetForUser(order_id, user.Id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	if order.Status == "delivered" {
+		app.editConflictResponse(w, r)
+		return
+	}
+
+	if order.Restaurant_id != restaurant_id {
+		app.badRequestResponse(w, r, errors.New("invalid restaurant"))
+		return
+	}
+
+	err = app.models.OrderItems.Insert(order_item)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	headers := make(http.Header)
+	headers.Set("Location", fmt.Sprintf("/restaurant/%d/orders/orders/%d/items/%d", restaurant_id, order_id, order_item.Id))
+
+	err = app.writeJSON(w, http.StatusCreated, envelope{"order_item": order_item}, headers)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}

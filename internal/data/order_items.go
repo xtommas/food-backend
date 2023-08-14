@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"time"
+
+	"github.com/xtommas/food-backend/internal/validator"
 )
 
 type OrderItem struct {
@@ -13,6 +15,14 @@ type OrderItem struct {
 	Dish_id  int64 `json:"dish_id"`
 	Quantity int   `json:"quantity"`
 	Subtotal Price `json:"subtotal"`
+}
+
+func ValidateQuantity(v *validator.Validator, quantity int) {
+	v.Check(quantity > 0, "address", "must be a positive number")
+}
+
+func ValidateOrderItem(v *validator.Validator, item *OrderItem) {
+	ValidateQuantity(v, item.Quantity)
 }
 
 type OrderItemModel struct {
