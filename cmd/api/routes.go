@@ -43,8 +43,10 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/restaurants/:restaurant_id/orders", app.requireRole("restaurant", app.getOrdersForRestaurantHandler))
 	// GET users/me/orders
 	router.HandlerFunc(http.MethodGet, "/users/me/orders", app.requireRole("customer", app.getOrdersForUserHandler))
-	// GET /restaurants/:restaurant_id/orders/:orders_id
-
+	// GET /restaurants/:restaurant_id/orders/:order_id
+	router.HandlerFunc(http.MethodGet, "/restaurants/:restaurant_id/orders/:order_id", app.requireRole("restaurant", app.getSingleOrderForRestaurantHandler))
+	// GET users/me/orders/:order_id
+	router.HandlerFunc(http.MethodGet, "/users/me/orders/:order_id", app.requireRole("customer", app.getSingleOrderForUserHandler))
 	// PATCH /restaurants/:restaurant_id/orders/:order_id (udpate status)
 
 	// POST /restaurants/:restaurant_id/orders/:order_id/items

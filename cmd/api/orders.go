@@ -160,3 +160,64 @@ func (app *application) getOrdersForUserHandler(w http.ResponseWriter, r *http.R
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+func (app *application) getSingleOrderForRestaurantHandler(w http.ResponseWriter, r *http.Request) {
+	restaurant_id, err := app.readIdParam(r, "restaurant_id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	user := app.contextGetUser(r)
+	if user.Id != restaurant_id {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	order_id, err := app.readIdParam(r, "order_id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	order, err := app.models.Orders.GetForRestaurant(order_id, restaurant_id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"order": order}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) getSingleOrderForUserHandler(w http.ResponseWriter, r *http.Request) {
+	order_id, err := app.readIdParam(r, "order_id")
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+	user := app.contextGetUser(r)
+
+	order, err := app.models.Orders.GetForUser(order_id, user.Id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"order": order}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}

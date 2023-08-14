@@ -52,7 +52,7 @@ func (o OrderModel) Insert(order *Order) error {
 	return o.DB.QueryRowContext(ctx, query, args...).Scan(&order.Id)
 }
 
-func (o OrderModel) Get(id int64) (*Order, error) {
+func (o OrderModel) GetForRestaurant(id int64, restaurant_id int64) (*Order, error) {
 	if id < 1 {
 		return nil, ErrRecordNotFound
 	}
@@ -60,14 +60,51 @@ func (o OrderModel) Get(id int64) (*Order, error) {
 	query := `
 		SELECT id, user_id, restaurant_id, total, address, created_at, status
 		FROM orders
-		WHERE id = $1`
+		WHERE id = $1 AND restaurant_id=$2`
 
 	var order Order
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := o.DB.QueryRowContext(ctx, query, id).Scan(
+	err := o.DB.QueryRowContext(ctx, query, id, restaurant_id).Scan(
+		&order.Id,
+		&order.User_id,
+		&order.Restaurant_id,
+		&order.Total,
+		&order.Address,
+		&order.Created_at,
+		&order.Status,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &order, nil
+}
+
+func (o OrderModel) GetForUser(id int64, user_id int64) (*Order, error) {
+	if id < 1 {
+		return nil, ErrRecordNotFound
+	}
+
+	query := `
+		SELECT id, user_id, restaurant_id, total, address, created_at, status
+		FROM orders
+		WHERE id = $1 AND user_id=$2`
+
+	var order Order
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := o.DB.QueryRowContext(ctx, query, id, user_id).Scan(
 		&order.Id,
 		&order.User_id,
 		&order.Restaurant_id,
