@@ -98,7 +98,7 @@ func (app *application) getOrdersForRestaurantHandler(w http.ResponseWriter, r *
 
 	input.Filters.Sort = app.readString(qs, "sort", "id")
 
-	input.Filters.SortSafelist = []string{"id", "price", "status", "-id", "-price", "-status"}
+	input.Filters.SortSafelist = []string{"id", "total", "status", "-id", "-total", "-status"}
 
 	if data.ValidateFilters(v, input.Filters); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
@@ -140,7 +140,7 @@ func (app *application) getOrdersForUserHandler(w http.ResponseWriter, r *http.R
 
 	input.Filters.Sort = app.readString(qs, "sort", "id")
 
-	input.Filters.SortSafelist = []string{"id", "price", "status", "-id", "-price", "-status"}
+	input.Filters.SortSafelist = []string{"id", "total", "status", "-id", "-total", "-status"}
 
 	if data.ValidateFilters(v, input.Filters); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
