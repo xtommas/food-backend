@@ -22,7 +22,7 @@ func (app *application) routes() http.Handler {
 	mux.HandleFunc("GET /restaurants", app.requirePermission("restaurants:read", app.listRestaurantsHandler))
 
 	// users endpoints
-	mux.HandleFunc("GET /users", app.registerUserHandler)
+	mux.HandleFunc("POST /users", app.registerUserHandler)
 	mux.HandleFunc("PUT /users/activate", app.activateUserHandler)
 	mux.HandleFunc("PUT /users/password", app.updateUserPasswordHandler)
 	mux.HandleFunc("GET /users/me", app.requireActivatedUser(app.getUserDataHandler))

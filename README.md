@@ -50,36 +50,35 @@ The API supports the following endpoints and actions:
 
 ## ⚙️ Setup
 
-You'll need to set up the PostgreSQL database using the `databse.sql` file and then running
+You'll need to have [Docker](https://www.docker.com/) installed.
+
+First, create a new .env file following the .env.example.
+
+Then, you can run the app with the following command:
 
 ```bash
-$ make db/migrations/up
+$ make docker/up
 ```
 
-Also, you should put the database Data Source Name and the JWT secret in a `.envrc` file, it should look something like this:
+this will run the db, the migrations, and the app.
 
-```bash
-export DB_DSN=postgres://food:password@localhost/food?sslmode=disable
-export JWT_SECRET=e7X29mLufqQNGGyEFl5rpSHSs_RZUtt69Maur82U_iSc4PIjFT2Dtt9r2U4VAO5odfp7OPDeg5TN4o0-wuNRZA
-```
+## 🔧 Makefile commands
 
-Now, you can run the application with
-
-```bash
-$ make run/api
-```
-
-Additionally, you can build the application using
-
-```bash
-$ make build/api
-```
-
-and run it using:
-
-```bash
-./bin/api -db-dsn=postgres://food:yourpassword@localhost/food?sslmode=disable
-```
+| Command                                         | Description                                                             |
+| ----------------------------------------------- | ----------------------------------------------------------------------- |
+| `make help`                                     | Print the help message with all available commands                      |
+| `make docker/up`                                | Build Docker images and start all services in detached mode             |
+| `make docker/up/attached`                       | Build Docker images and start all services while following logs         |
+| `make docker/down`                              | Stop all running services                                               |
+| `make docker/down/volumes`                      | Stop all services and remove Docker volumes (wipes DB data)             |
+| `make docker/nuke`                              | Stop services, remove volumes, images, and orphan containers            |
+| `make docker/logs`                              | Follow logs for all services                                            |
+| `make docker/logs/api`                          | Follow logs for the API service only                                    |
+| `make docker/psql`                              | Open a `psql` shell connected to the containerized PostgreSQL database  |
+| `make docker/migrate/new name=<migration_name>` | Create a new sequential SQL migration file                              |
+| `make docker/migrate/up`                        | Run database migrations against the containerized database              |
+| `make docker/migrate/down`                      | Roll back all database migrations                                       |
+| `make build/api`                                | Build the `cmd/api` application locally and generate Linux AMD64 binary |
 
 ## 🍕 Examples
 

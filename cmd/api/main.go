@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"database/sql"
-	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -50,52 +50,45 @@ type application struct {
 }
 
 func main() {
+	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
+
 	var cfg config
 
-	// server flags
-	flag.IntVar(&cfg.port, "port", 4000, "API server port")
-	flag.StringVar(&cfg.env, "env", "development", "Environmet (development|staging|production)")
+	// server
+	cfg.port = getEnvInt("PORT", 4000, logger)
+	cfg.env = getEnv("ENV", "development")
 
-	// database flags
-	flag.StringVar(&cfg.db.dsn, "db-dsn", "", "PostgreSQL DSN")
-	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connections")
-	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connections")
-	flag.StringVar(&cfg.db.maxIdleTime, "db-max-idle-time", "15m", "PostgreSQL max connection idle time")
+	// database
+	cfg.db.dsn = requireEnv("DB_DSN", logger)
+	cfg.db.maxOpenConns = getEnvInt("DB_MAX_OPEN_CONNS", 25, logger)
+	cfg.db.maxIdleConns = getEnvInt("DB_MAX_IDLE_CONNS", 25, logger)
+	cfg.db.maxIdleTime = getEnv("DB_MAX_IDLE_TIME", "15m")
 
-	// rate limiter flags
-	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter maximum requests per second")
-	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
-	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
+	// rate limiter
+	cfg.limiter.rps = getEnvFloat("LIMITER_RPS", 2, logger)
+	cfg.limiter.burst = getEnvInt("LIMITER_BURST", 4, logger)
+	cfg.limiter.enabled = getEnvBool("LIMITER_ENABLED", true, logger)
 
-	// CORS flags
-	flag.Func("cors-trusted-origins", "Trusted CORS origins (space separated)", func(val string) error {
-		cfg.cors.trustedOrigins = strings.Fields(val)
-		return nil
-	})
+	// CORS
+	if origins := os.Getenv("CORS_TRUSTED_ORIGINS"); origins != "" {
+		cfg.cors.trustedOrigins = strings.Fields(origins)
+	}
 
-	// JWT secret flag
-	flag.StringVar(&cfg.jwt.secret, "jwt-secret", "", "JWT secret")
+	// JWT
+	cfg.jwt.secret = requireEnv("JWT_SECRET", logger)
 
-	// version flags
-	displayVersion := flag.Bool("version", false, "Display version and exit")
-
-	flag.Parse()
-
-	if *displayVersion {
+	// version
+	if os.Getenv("VERSION") == "true" {
 		fmt.Printf("Version:\t%s\n", version)
 		fmt.Printf("Build time:\t%s\n", buildTime)
 		os.Exit(0)
 	}
 
-	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
-
 	db, err := openDB(cfg)
 	if err != nil {
 		logger.PrintFatal(err, nil)
 	}
-
 	defer db.Close()
-
 	logger.PrintInfo("database connection pool established", nil)
 
 	app := &application{
@@ -123,18 +116,63 @@ func openDB(cfg config) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	db.SetConnMaxIdleTime(duration)
 
-	// create a context with a 5 second timeout deadline
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// establish a new connection to the db, with the context created before. If the connection couldn't be established successfully in 5 seconds, it returns an error
 	err = db.PingContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	return db, nil
+}
+
+func getEnv(key, defaultVal string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return defaultVal
+}
+
+func requireEnv(key string, logger *jsonlog.Logger) string {
+	val := os.Getenv(key)
+	if val == "" {
+		logger.PrintFatal(fmt.Errorf("required environment variable %q is not set", key), nil)
+	}
+	return val
+}
+
+func getEnvInt(key string, defaultVal int, logger *jsonlog.Logger) int {
+	if val := os.Getenv(key); val != "" {
+		n, err := strconv.Atoi(val)
+		if err != nil {
+			logger.PrintFatal(fmt.Errorf("invalid value for %q: %w", key, err), nil)
+		}
+		return n
+	}
+	return defaultVal
+}
+
+func getEnvFloat(key string, defaultVal float64, logger *jsonlog.Logger) float64 {
+	if val := os.Getenv(key); val != "" {
+		f, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			logger.PrintFatal(fmt.Errorf("invalid value for %q: %w", key, err), nil)
+		}
+		return f
+	}
+	return defaultVal
+}
+
+func getEnvBool(key string, defaultVal bool, logger *jsonlog.Logger) bool {
+	if val := os.Getenv(key); val != "" {
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			logger.PrintFatal(fmt.Errorf("invalid value for %q: %w", key, err), nil)
+		}
+		return b
+	}
+	return defaultVal
 }
