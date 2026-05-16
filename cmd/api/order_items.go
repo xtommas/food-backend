@@ -49,7 +49,7 @@ func (app *application) createOrderItemHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	subtotal := dish.Price * data.Price(input.Quantity)
+	subtotal := dish.Price * int64(input.Quantity)
 
 	order_item := &data.OrderItem{
 		OrderID:  order_id,
@@ -154,9 +154,9 @@ func (app *application) getOrderItemsHandler(w http.ResponseWriter, r *http.Requ
 	}
 
 	type order_item struct {
-		Name     string     `json:"dish"`
-		Quantity int        `json:"quantity"`
-		Subtotal data.Price `json:"subtotal"`
+		Name     string `json:"dish"`
+		Quantity int    `json:"quantity"`
+		Subtotal int64  `json:"subtotal"`
 	}
 
 	order_items := []order_item{}
@@ -209,9 +209,9 @@ func (app *application) getUserOrderItemsHandler(w http.ResponseWriter, r *http.
 	}
 
 	type order_item struct {
-		Name     string     `json:"dish"`
-		Quantity int        `json:"quantity"`
-		Subtotal data.Price `json:"subtotal"`
+		Name     string `json:"dish"`
+		Quantity int    `json:"quantity"`
+		Subtotal int64  `json:"subtotal"`
 	}
 
 	order_items := []order_item{}

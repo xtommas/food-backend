@@ -84,7 +84,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	claims.Issuer = "github.com/xtommas/food-backend"
 	claims.Audiences = []string{"github.com/xtommas/food-backend"}
 
-	claims.Set = map[string]interface{}{"scope": "activation"}
+	claims.Set = map[string]any{"scope": "activation"}
 
 	jwtBytes, err := claims.HMACSign(jwt.HS256, []byte(app.config.jwt.secret))
 	if err != nil {

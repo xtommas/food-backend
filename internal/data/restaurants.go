@@ -48,7 +48,7 @@ func (m RestaurantModel) Insert(restaurant *Restaurant) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, created_at, version`
 
-	args := []interface{}{
+	args := []any{
 		restaurant.Name,
 		restaurant.Photo,
 		restaurant.Address,
@@ -119,7 +119,7 @@ func (m RestaurantModel) Update(restaurant *Restaurant) error {
 		WHERE id = $10 AND version = $11
 		RETURNING version`
 
-	args := []interface{}{
+	args := []any{
 		restaurant.Name,
 		restaurant.Photo,
 		restaurant.Address,

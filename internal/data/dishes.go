@@ -16,7 +16,7 @@ type Dish struct {
 	ID           int64     `json:"id"`
 	RestaurantID int64     `json:"restaurant_id"`
 	Name         string    `json:"name"`
-	Price        Price     `json:"price"`
+	Price        int64     `json:"price"`
 	Description  string    `json:"description"`
 	Categories   []string  `json:"categories"`
 	Photo        string    `json:"photo,omitempty"`
@@ -50,7 +50,7 @@ func (d DishModel) Insert(dish *Dish) error {
 		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, available, updated_at`
 
-	args := []interface{}{dish.RestaurantID, dish.Name, dish.Price, dish.Description, pq.Array(dish.Categories), dish.Photo}
+	args := []any{dish.RestaurantID, dish.Name, dish.Price, dish.Description, pq.Array(dish.Categories), dish.Photo}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -156,7 +156,7 @@ func (d DishModel) Update(dish *Dish) error {
 		WHERE id = $7
 		RETURNING updated_at`
 
-	args := []interface{}{
+	args := []any{
 		dish.Name,
 		dish.Price,
 		dish.Description,

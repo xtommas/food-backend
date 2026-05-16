@@ -14,7 +14,7 @@ type Order struct {
 	ID           int64     `json:"id"`
 	UserID       int64     `json:"user_id"`
 	RestaurantID int64     `json:"restaurant_id"`
-	Total        Price     `json:"total"`
+	Total        int64     `json:"total"`
 	Address      string    `json:"address"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
@@ -65,7 +65,7 @@ func (o OrderModel) Insert(order *Order) error {
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at, updated_at`
 
-	args := []interface{}{order.UserID, order.RestaurantID, order.Total, order.Address, order.Status}
+	args := []any{order.UserID, order.RestaurantID, order.Total, order.Address, order.Status}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

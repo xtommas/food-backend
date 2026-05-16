@@ -19,25 +19,21 @@ ALTER TABLE orders
         FOREIGN KEY (restaurant_id) REFERENCES restaurants (id) ON DELETE CASCADE;
 
 -- =============================================================================
--- FLOAT → NUMERIC(10,2) for all money columns
+-- FLOAT → BIGINT for all money columns (store as cents)
 -- =============================================================================
-ALTER TABLE dishes
-    ALTER COLUMN price TYPE NUMERIC(10, 2) USING price::NUMERIC(10, 2);
-
-ALTER TABLE orders
-    ALTER COLUMN total TYPE NUMERIC(10, 2) USING total::NUMERIC(10, 2);
-
-ALTER TABLE order_items
-    ALTER COLUMN subtotal TYPE NUMERIC(10, 2) USING subtotal::NUMERIC(10, 2);
+ALTER TABLE dishes      ALTER COLUMN price    TYPE bigint USING (price * 100)::bigint;
+ALTER TABLE orders      ALTER COLUMN total    TYPE bigint USING (total * 100)::bigint;
+ALTER TABLE order_items ALTER COLUMN subtotal TYPE bigint USING (subtotal * 100)::bigint;
 
 -- =============================================================================
 -- Snapshot dish name + unit price in order_items (preserve order history)
 --    New rows will have these populated by the application.
 --    Existing rows get a best-effort backfill from the dishes table.
+--    Note: dishes.price is already in cents at this point.
 -- =============================================================================
 ALTER TABLE order_items
-    ADD COLUMN IF NOT EXISTS dish_name TEXT,
-    ADD COLUMN IF NOT EXISTS unit_price NUMERIC(10, 2);
+    ADD COLUMN IF NOT EXISTS dish_name  TEXT,
+    ADD COLUMN IF NOT EXISTS unit_price bigint;
 
 UPDATE order_items oi
 SET
@@ -54,11 +50,8 @@ ALTER TABLE order_items
 -- =============================================================================
 -- Add updated_at to dishes and orders
 -- =============================================================================
-ALTER TABLE dishes
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP(0) WITH TIME ZONE NOT NULL DEFAULT NOW();
-
-ALTER TABLE orders
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP(0) WITH TIME ZONE NOT NULL DEFAULT NOW();
+ALTER TABLE dishes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP(0) WITH TIME ZONE NOT NULL DEFAULT NOW();
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP(0) WITH TIME ZONE NOT NULL DEFAULT NOW();
 
 -- =============================================================================
 -- orders.status CHECK constraint
@@ -66,8 +59,6 @@ ALTER TABLE orders
 ALTER TABLE orders
     ADD CONSTRAINT orders_status_check
         CHECK (status IN ('pending', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled'));
-
-
 
 -- =============================================================================
 -- Indexes for common query patterns
@@ -85,12 +76,6 @@ CREATE INDEX IF NOT EXISTS dishes_restaurant_id_idx ON dishes (restaurant_id);
 
 -- Order items looked up by order (most common join path)
 CREATE INDEX IF NOT EXISTS order_items_order_id_idx ON order_items (order_id);
-
--- =============================================================================
--- Add updated_at columns
--- =============================================================================
-ALTER TABLE dishes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP(0) WITH TIME ZONE NOT NULL DEFAULT NOW();
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP(0) WITH TIME ZONE NOT NULL DEFAULT NOW();
 
 -- =============================================================================
 -- Shared trigger function (reusable across any table)

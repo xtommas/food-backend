@@ -23,10 +23,10 @@ func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	var input struct {
-		Name        string     `json:"name"`
-		Price       data.Price `json:"price"`
-		Description string     `json:"description"`
-		Categories  []string   `json:"categories"`
+		Name        string   `json:"name"`
+		Price       int64    `json:"price"`
+		Description string   `json:"description"`
+		Categories  []string `json:"categories"`
 	}
 
 	err = app.readJSON(w, r, &input)
@@ -151,12 +151,12 @@ func (app *application) updateDishHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	var input struct {
-		Name        *string     `json:"name"`
-		Price       *data.Price `json:"price"`
-		Description *string     `json:"description"`
-		Category    []string    `json:"category"`
-		Photo       *string     `json:"photo"`
-		Available   *bool       `json:"available"`
+		Name        *string  `json:"name"`
+		Price       *int64   `json:"price"`
+		Description *string  `json:"description"`
+		Category    []string `json:"category"`
+		Photo       *string  `json:"photo"`
+		Available   *bool    `json:"available"`
 	}
 
 	// read the body data into the input struct

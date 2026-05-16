@@ -14,9 +14,9 @@ type OrderItem struct {
 	OrderID   int64  `json:"order_id"`
 	DishID    int64  `json:"dish_id"`
 	DishName  string `json:"dish_name"`
-	UnitPrice Price  `json:"unit_price"`
+	UnitPrice int64  `json:"unit_price"`
 	Quantity  int    `json:"quantity"`
-	Subtotal  Price  `json:"subtotal"`
+	Subtotal  int64  `json:"subtotal"`
 }
 
 func ValidateQuantity(v *validator.Validator, quantity int) {
@@ -39,7 +39,7 @@ func (i OrderItemModel) Insert(orderItem *OrderItem) error {
 		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id`
 
-	args := []interface{}{
+	args := []any{
 		orderItem.OrderID,
 		orderItem.DishID,
 		orderItem.DishName,
@@ -61,7 +61,7 @@ func (i OrderItemModel) InsertFromDish(orderID int64, dish *Dish, quantity int) 
 		DishName:  dish.Name,
 		UnitPrice: dish.Price,
 		Quantity:  quantity,
-		Subtotal:  Price(float64(dish.Price) * float64(quantity)),
+		Subtotal:  dish.Price * int64(quantity),
 	}
 
 	err := i.Insert(item)
@@ -156,10 +156,10 @@ func (i OrderItemModel) DeleteForOrder(orderID int64) error {
 	return err
 }
 
-func CalculateTotal(items []*OrderItem) Price {
-	var total float64
+func CalculateTotal(items []*OrderItem) int64 {
+	var total int64
 	for _, item := range items {
-		total += float64(item.Subtotal)
+		total += item.Subtotal
 	}
-	return Price(total)
+	return total
 }

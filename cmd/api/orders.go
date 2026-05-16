@@ -117,9 +117,9 @@ func (app *application) getOrdersForRestaurantHandler(w http.ResponseWriter, r *
 	}
 
 	type order_item struct {
-		Name     string     `json:"dish"`
-		Quantity int        `json:"quantity"`
-		Subtotal data.Price `json:"subtotal"`
+		Name     string `json:"dish"`
+		Quantity int    `json:"quantity"`
+		Subtotal int64  `json:"subtotal"`
 	}
 
 	type fullOrder struct {
@@ -195,9 +195,9 @@ func (app *application) getOrdersForUserHandler(w http.ResponseWriter, r *http.R
 	}
 
 	type order_item struct {
-		Name     string     `json:"dish"`
-		Quantity int        `json:"quantity"`
-		Subtotal data.Price `json:"subtotal"`
+		Name     string `json:"dish"`
+		Quantity int    `json:"quantity"`
+		Subtotal int64  `json:"subtotal"`
 	}
 
 	type fullOrder struct {
@@ -271,9 +271,9 @@ func (app *application) getSingleOrderForRestaurantHandler(w http.ResponseWriter
 	}
 
 	type order_item struct {
-		Name     string     `json:"dish"`
-		Quantity int        `json:"quantity"`
-		Subtotal data.Price `json:"subtotal"`
+		Name     string `json:"dish"`
+		Quantity int    `json:"quantity"`
+		Subtotal int64  `json:"subtotal"`
 	}
 
 	type fullOrder struct {
@@ -332,9 +332,9 @@ func (app *application) getSingleOrderForUserHandler(w http.ResponseWriter, r *h
 	}
 
 	type order_item struct {
-		Name     string     `json:"dish"`
-		Quantity int        `json:"quantity"`
-		Subtotal data.Price `json:"subtotal"`
+		Name     string `json:"dish"`
+		Quantity int    `json:"quantity"`
+		Subtotal int64  `json:"subtotal"`
 	}
 
 	type fullOrder struct {
