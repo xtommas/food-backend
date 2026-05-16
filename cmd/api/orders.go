@@ -45,11 +45,11 @@ func (app *application) createOrderHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	order := &data.Order{
-		User_id:       user.Id,
-		Restaurant_id: restaurant_id,
-		Total:         0,
-		Address:       input.Address,
-		Status:        "created",
+		UserID:       user.Id,
+		RestaurantID: restaurant_id,
+		Total:        0,
+		Address:      input.Address,
+		Status:       "created",
 	}
 
 	v := validator.New()
@@ -66,7 +66,7 @@ func (app *application) createOrderHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	headers := make(http.Header)
-	headers.Set("Location", fmt.Sprintf("/restaurant/%d/orders/orders/%d", order.Restaurant_id, order.Id))
+	headers.Set("Location", fmt.Sprintf("/restaurant/%d/orders/orders/%d", order.RestaurantID, order.ID))
 
 	err = app.writeJSON(w, http.StatusCreated, envelope{"order": order}, headers)
 	if err != nil {
@@ -130,7 +130,7 @@ func (app *application) getOrdersForRestaurantHandler(w http.ResponseWriter, r *
 	fullOrders := []fullOrder{}
 
 	for _, order := range orders {
-		items, err := app.models.OrderItems.GetForOrder(order.Id)
+		items, err := app.models.OrderItems.GetForOrder(order.ID)
 		if err != nil {
 			app.serverErrorResponse(w, r, err)
 			return
@@ -139,7 +139,7 @@ func (app *application) getOrdersForRestaurantHandler(w http.ResponseWriter, r *
 		orderItems := []order_item{}
 
 		for _, item := range items {
-			dish, err := app.models.Dishes.Get(item.Dish_id)
+			dish, err := app.models.Dishes.Get(item.DishID)
 			if err != nil {
 				switch {
 				case errors.Is(err, data.ErrRecordNotFound):
@@ -208,7 +208,7 @@ func (app *application) getOrdersForUserHandler(w http.ResponseWriter, r *http.R
 	fullOrders := []fullOrder{}
 
 	for _, order := range orders {
-		items, err := app.models.OrderItems.GetForOrder(order.Id)
+		items, err := app.models.OrderItems.GetForOrder(order.ID)
 		if err != nil {
 			app.serverErrorResponse(w, r, err)
 			return
@@ -217,7 +217,7 @@ func (app *application) getOrdersForUserHandler(w http.ResponseWriter, r *http.R
 		orderItems := []order_item{}
 
 		for _, item := range items {
-			dish, err := app.models.Dishes.Get(item.Dish_id)
+			dish, err := app.models.Dishes.Get(item.DishID)
 			if err != nil {
 				switch {
 				case errors.Is(err, data.ErrRecordNotFound):
@@ -283,14 +283,14 @@ func (app *application) getSingleOrderForRestaurantHandler(w http.ResponseWriter
 
 	orderItems := []order_item{}
 
-	items, err := app.models.OrderItems.GetForOrder(order.Id)
+	items, err := app.models.OrderItems.GetForOrder(order.ID)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
 	for _, item := range items {
-		dish, err := app.models.Dishes.Get(item.Dish_id)
+		dish, err := app.models.Dishes.Get(item.DishID)
 		if err != nil {
 			switch {
 			case errors.Is(err, data.ErrRecordNotFound):
@@ -344,14 +344,14 @@ func (app *application) getSingleOrderForUserHandler(w http.ResponseWriter, r *h
 
 	orderItems := []order_item{}
 
-	items, err := app.models.OrderItems.GetForOrder(order.Id)
+	items, err := app.models.OrderItems.GetForOrder(order.ID)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
 	for _, item := range items {
-		dish, err := app.models.Dishes.Get(item.Dish_id)
+		dish, err := app.models.Dishes.Get(item.DishID)
 		if err != nil {
 			switch {
 			case errors.Is(err, data.ErrRecordNotFound):

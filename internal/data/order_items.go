@@ -10,15 +10,17 @@ import (
 )
 
 type OrderItem struct {
-	Id       int64 `json:"id"`
-	Order_id int64 `json:"order_id"`
-	Dish_id  int64 `json:"dish_id"`
-	Quantity int   `json:"quantity"`
-	Subtotal Price `json:"subtotal"`
+	ID        int64  `json:"id"`
+	OrderID   int64  `json:"order_id"`
+	DishID    int64  `json:"dish_id"`
+	DishName  string `json:"dish_name"`
+	UnitPrice Price  `json:"unit_price"`
+	Quantity  int    `json:"quantity"`
+	Subtotal  Price  `json:"subtotal"`
 }
 
 func ValidateQuantity(v *validator.Validator, quantity int) {
-	v.Check(quantity > 0, "address", "must be a positive number")
+	v.Check(quantity > 0, "quantity", "must be a positive number")
 }
 
 func ValidateOrderItem(v *validator.Validator, item *OrderItem) {
@@ -29,18 +31,45 @@ type OrderItemModel struct {
 	DB *sql.DB
 }
 
+// Insert snapshots the dish name and unit price at the time of the order,
+// so order history remains accurate even if the dish is later changed or deleted.
 func (i OrderItemModel) Insert(orderItem *OrderItem) error {
 	query := `
-		INSERT INTO order_items (order_id, dish_id, quantity, subtotal)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO order_items (order_id, dish_id, dish_name, unit_price, quantity, subtotal)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id`
 
-	args := []interface{}{orderItem.Order_id, orderItem.Dish_id, orderItem.Quantity, orderItem.Subtotal}
+	args := []interface{}{
+		orderItem.OrderID,
+		orderItem.DishID,
+		orderItem.DishName,
+		orderItem.UnitPrice,
+		orderItem.Quantity,
+		orderItem.Subtotal,
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	return i.DB.QueryRowContext(ctx, query, args...).Scan(&orderItem.Id)
+	return i.DB.QueryRowContext(ctx, query, args...).Scan(&orderItem.ID)
+}
+
+func (i OrderItemModel) InsertFromDish(orderID int64, dish *Dish, quantity int) (*OrderItem, error) {
+	item := &OrderItem{
+		OrderID:   orderID,
+		DishID:    dish.ID,
+		DishName:  dish.Name,
+		UnitPrice: dish.Price,
+		Quantity:  quantity,
+		Subtotal:  Price(float64(dish.Price) * float64(quantity)),
+	}
+
+	err := i.Insert(item)
+	if err != nil {
+		return nil, err
+	}
+
+	return item, nil
 }
 
 func (i OrderItemModel) Update(orderItem *OrderItem) error {
@@ -52,7 +81,7 @@ func (i OrderItemModel) Update(orderItem *OrderItem) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	result, err := i.DB.ExecContext(ctx, query, orderItem.Quantity, orderItem.Subtotal, orderItem.Id)
+	result, err := i.DB.ExecContext(ctx, query, orderItem.Quantity, orderItem.Subtotal, orderItem.ID)
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -74,35 +103,35 @@ func (i OrderItemModel) Update(orderItem *OrderItem) error {
 	return nil
 }
 
-func (i OrderItemModel) GetForOrder(order_id int64) ([]*OrderItem, error) {
+func (i OrderItemModel) GetForOrder(orderID int64) ([]*OrderItem, error) {
 	query := `
-		SELECT id, order_id, dish_id, quantity, subtotal
+		SELECT id, order_id, dish_id, dish_name, unit_price, quantity, subtotal
 		FROM order_items
 		WHERE order_id = $1`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := i.DB.QueryContext(ctx, query, order_id)
+	rows, err := i.DB.QueryContext(ctx, query, orderID)
 	if err != nil {
 		return nil, err
 	}
-
 	defer rows.Close()
 
-	orderItems := []*OrderItem{}
+	var orderItems []*OrderItem
 
 	for rows.Next() {
 		var item OrderItem
 
 		err := rows.Scan(
-			&item.Id,
-			&item.Order_id,
-			&item.Dish_id,
+			&item.ID,
+			&item.OrderID,
+			&item.DishID,
+			&item.DishName,
+			&item.UnitPrice,
 			&item.Quantity,
 			&item.Subtotal,
 		)
-
 		if err != nil {
 			return nil, err
 		}
@@ -115,4 +144,22 @@ func (i OrderItemModel) GetForOrder(order_id int64) ([]*OrderItem, error) {
 	}
 
 	return orderItems, nil
+}
+
+func (i OrderItemModel) DeleteForOrder(orderID int64) error {
+	query := `DELETE FROM order_items WHERE order_id = $1`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	_, err := i.DB.ExecContext(ctx, query, orderID)
+	return err
+}
+
+func CalculateTotal(items []*OrderItem) Price {
+	var total float64
+	for _, item := range items {
+		total += float64(item.Subtotal)
+	}
+	return Price(total)
 }

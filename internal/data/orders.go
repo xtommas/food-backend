@@ -11,13 +11,25 @@ import (
 )
 
 type Order struct {
-	Id            int64     `json:"id"`
-	User_id       int64     `json:"user_id"`
-	Restaurant_id int64     `json:"restaurant_id"`
-	Total         Price     `json:"total"`
-	Address       string    `json:"address"`
-	Created_at    time.Time `json:"created_at"`
-	Status        string    `json:"status"`
+	ID           int64     `json:"id"`
+	UserID       int64     `json:"user_id"`
+	RestaurantID int64     `json:"restaurant_id"`
+	Total        Price     `json:"total"`
+	Address      string    `json:"address"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Status       string    `json:"status"`
+}
+
+var validStatuses = []string{"pending", "confirmed", "preparing", "ready", "delivered", "cancelled"}
+
+var validTransitions = map[string][]string{
+	"pending":   {"confirmed", "cancelled"},
+	"confirmed": {"preparing", "cancelled"},
+	"preparing": {"ready"},
+	"ready":     {"delivered"},
+	"delivered": {},
+	"cancelled": {},
 }
 
 func ValidateAddress(v *validator.Validator, address string) {
@@ -26,7 +38,16 @@ func ValidateAddress(v *validator.Validator, address string) {
 
 func ValidateStatus(v *validator.Validator, status string) {
 	v.Check(status != "", "status", "must be provided")
-	v.Check(status == "created" || status == "in progress" || status == "ready" || status == "delivered" || status == "cancelled", "status", "invalid status")
+	v.Check(validator.PermittedValue(status, validStatuses...), "status", "invalid status")
+}
+
+func ValidateStatusTransition(v *validator.Validator, from, to string) {
+	allowed, ok := validTransitions[from]
+	if !ok {
+		v.AddError("status", "current status is unrecognised")
+		return
+	}
+	v.Check(validator.PermittedValue(to, allowed...), "status", "invalid transition from "+from+" to "+to)
 }
 
 func ValidateOrder(v *validator.Validator, order *Order) {
@@ -42,41 +63,41 @@ func (o OrderModel) Insert(order *Order) error {
 	query := `
 		INSERT INTO orders (user_id, restaurant_id, total, address, status)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id`
+		RETURNING id, created_at, updated_at`
 
-	args := []interface{}{order.User_id, order.Restaurant_id, order.Total, order.Address, order.Status}
+	args := []interface{}{order.UserID, order.RestaurantID, order.Total, order.Address, order.Status}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	return o.DB.QueryRowContext(ctx, query, args...).Scan(&order.Id)
+	return o.DB.QueryRowContext(ctx, query, args...).Scan(&order.ID, &order.CreatedAt, &order.UpdatedAt)
 }
 
-func (o OrderModel) GetForRestaurant(id int64, restaurant_id int64) (*Order, error) {
+func (o OrderModel) GetForRestaurant(id int64, restaurantID int64) (*Order, error) {
 	if id < 1 {
 		return nil, ErrRecordNotFound
 	}
 
 	query := `
-		SELECT id, user_id, restaurant_id, total, address, created_at, status
+		SELECT id, user_id, restaurant_id, total, address, created_at, updated_at, status
 		FROM orders
-		WHERE id = $1 AND restaurant_id=$2`
+		WHERE id = $1 AND restaurant_id = $2`
 
 	var order Order
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := o.DB.QueryRowContext(ctx, query, id, restaurant_id).Scan(
-		&order.Id,
-		&order.User_id,
-		&order.Restaurant_id,
+	err := o.DB.QueryRowContext(ctx, query, id, restaurantID).Scan(
+		&order.ID,
+		&order.UserID,
+		&order.RestaurantID,
 		&order.Total,
 		&order.Address,
-		&order.Created_at,
+		&order.CreatedAt,
+		&order.UpdatedAt,
 		&order.Status,
 	)
-
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -89,31 +110,31 @@ func (o OrderModel) GetForRestaurant(id int64, restaurant_id int64) (*Order, err
 	return &order, nil
 }
 
-func (o OrderModel) GetForUser(id int64, user_id int64) (*Order, error) {
+func (o OrderModel) GetForUser(id int64, userID int64) (*Order, error) {
 	if id < 1 {
 		return nil, ErrRecordNotFound
 	}
 
 	query := `
-		SELECT id, user_id, restaurant_id, total, address, created_at, status
+		SELECT id, user_id, restaurant_id, total, address, created_at, updated_at, status
 		FROM orders
-		WHERE id = $1 AND user_id=$2`
+		WHERE id = $1 AND user_id = $2`
 
 	var order Order
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := o.DB.QueryRowContext(ctx, query, id, user_id).Scan(
-		&order.Id,
-		&order.User_id,
-		&order.Restaurant_id,
+	err := o.DB.QueryRowContext(ctx, query, id, userID).Scan(
+		&order.ID,
+		&order.UserID,
+		&order.RestaurantID,
 		&order.Total,
 		&order.Address,
-		&order.Created_at,
+		&order.CreatedAt,
+		&order.UpdatedAt,
 		&order.Status,
 	)
-
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -130,36 +151,28 @@ func (o OrderModel) Update(order *Order) error {
 	query := `
 		UPDATE orders
 		SET total = $1, status = $2
-		WHERE id = $3`
+		WHERE id = $3
+		RETURNING updated_at`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	result, err := o.DB.ExecContext(ctx, query, order.Total, order.Status, order.Id)
+	err := o.DB.QueryRowContext(ctx, query, order.Total, order.Status, order.ID).Scan(&order.UpdatedAt)
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			return ErrEditConflict
+			return ErrRecordNotFound
 		default:
 			return err
 		}
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rowsAffected == 0 {
-		return ErrRecordNotFound
-	}
-
 	return nil
 }
 
-func (o OrderModel) GetAllForRestaurant(restaurant_id int64, status string, filters Filters) ([]*Order, Metadata, error) {
+func (o OrderModel) GetAllForRestaurant(restaurantID int64, status string, filters Filters) ([]*Order, Metadata, error) {
 	query := fmt.Sprintf(`
-		SELECT COUNT(*) OVER(), id, user_id, restaurant_id, total, address, created_at, status
+		SELECT COUNT(*) OVER(), id, user_id, restaurant_id, total, address, created_at, updated_at, status
 		FROM orders
 		WHERE restaurant_id = $1
 		AND (status = $2 OR $2 = '')
@@ -169,30 +182,29 @@ func (o OrderModel) GetAllForRestaurant(restaurant_id int64, status string, filt
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := o.DB.QueryContext(ctx, query, restaurant_id, status, filters.limit(), filters.offset())
+	rows, err := o.DB.QueryContext(ctx, query, restaurantID, status, filters.limit(), filters.offset())
 	if err != nil {
 		return nil, Metadata{}, err
 	}
-
 	defer rows.Close()
 
 	totalRecords := 0
-	orders := []*Order{}
+	var orders []*Order
 
 	for rows.Next() {
 		var order Order
 
 		err := rows.Scan(
 			&totalRecords,
-			&order.Id,
-			&order.User_id,
-			&order.Restaurant_id,
+			&order.ID,
+			&order.UserID,
+			&order.RestaurantID,
 			&order.Total,
 			&order.Address,
-			&order.Created_at,
+			&order.CreatedAt,
+			&order.UpdatedAt,
 			&order.Status,
 		)
-
 		if err != nil {
 			return nil, Metadata{}, err
 		}
@@ -209,9 +221,9 @@ func (o OrderModel) GetAllForRestaurant(restaurant_id int64, status string, filt
 	return orders, metadata, nil
 }
 
-func (o OrderModel) GetAllForUser(user_id int64, status string, filters Filters) ([]*Order, Metadata, error) {
+func (o OrderModel) GetAllForUser(userID int64, status string, filters Filters) ([]*Order, Metadata, error) {
 	query := fmt.Sprintf(`
-		SELECT COUNT(*) OVER(), id, user_id, restaurant_id, total, address, created_at, status
+		SELECT COUNT(*) OVER(), id, user_id, restaurant_id, total, address, created_at, updated_at, status
 		FROM orders
 		WHERE user_id = $1
 		AND (status = $2 OR $2 = '')
@@ -221,30 +233,29 @@ func (o OrderModel) GetAllForUser(user_id int64, status string, filters Filters)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := o.DB.QueryContext(ctx, query, user_id, status, filters.limit(), filters.offset())
+	rows, err := o.DB.QueryContext(ctx, query, userID, status, filters.limit(), filters.offset())
 	if err != nil {
 		return nil, Metadata{}, err
 	}
-
 	defer rows.Close()
 
 	totalRecords := 0
-	orders := []*Order{}
+	var orders []*Order
 
 	for rows.Next() {
 		var order Order
 
 		err := rows.Scan(
 			&totalRecords,
-			&order.Id,
-			&order.User_id,
-			&order.Restaurant_id,
+			&order.ID,
+			&order.UserID,
+			&order.RestaurantID,
 			&order.Total,
 			&order.Address,
-			&order.Created_at,
+			&order.CreatedAt,
+			&order.UpdatedAt,
 			&order.Status,
 		)
-
 		if err != nil {
 			return nil, Metadata{}, err
 		}

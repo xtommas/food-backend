@@ -43,11 +43,11 @@ func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	dish := &data.Dish{
-		Name:          input.Name,
-		Restaurant_id: restaurant.Id,
-		Price:         input.Price,
-		Description:   input.Description,
-		Categories:    input.Categories,
+		Name:         input.Name,
+		RestaurantID: restaurant.Id,
+		Price:        input.Price,
+		Description:  input.Description,
+		Categories:   input.Categories,
 	}
 
 	v := validator.New()
@@ -64,7 +64,7 @@ func (app *application) createDishHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	headers := make(http.Header)
-	headers.Set("Location", fmt.Sprintf("/restaurant/%d/dishes/%d", dish.Restaurant_id, dish.Id))
+	headers.Set("Location", fmt.Sprintf("/restaurant/%d/dishes/%d", dish.RestaurantID, dish.ID))
 
 	err = app.writeJSON(w, http.StatusCreated, envelope{"dish": dish}, headers)
 	if err != nil {
@@ -378,7 +378,7 @@ func (app *application) uploadPhotoHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	fileName := strconv.FormatInt(int64(dish.Id), 10) + ".jpg"
+	fileName := strconv.FormatInt(int64(dish.ID), 10) + ".jpg"
 	folder := "images/dishes/"
 
 	dish.Photo, err = app.storeImage(w, r, folder, fileName)

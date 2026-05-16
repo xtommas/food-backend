@@ -54,3 +54,12 @@ func Unique(values []string) bool {
 
 	return len(values) == len(uniqueValues)
 }
+
+func PermittedValue[T comparable](value T, permitted ...T) bool {
+	for _, p := range permitted {
+		if value == p {
+			return true
+		}
+	}
+	return false
+}
