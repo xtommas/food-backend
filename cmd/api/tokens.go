@@ -63,7 +63,7 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 	claims.Issuer = "github.com/xtommas/food-backend"
 	claims.Audiences = []string{"github.com/xtommas/food-backend"}
 
-	claims.Set = map[string]interface{}{"scope": "authentication"}
+	claims.Set = map[string]any{"scope": "authentication"}
 
 	jwtBytes, err := claims.HMACSign(jwt.HS256, []byte(app.config.jwt.secret))
 	if err != nil {
@@ -121,7 +121,7 @@ func (app *application) createPasswordResetTokenHandler(w http.ResponseWriter, r
 	claims.Issuer = "github.com/xtommas/food-backend"
 	claims.Audiences = []string{"github.com/xtommas/food-backend"}
 
-	claims.Set = map[string]interface{}{"scope": "password-reset"}
+	claims.Set = map[string]any{"scope": "password-reset"}
 
 	jwtBytes, err := claims.HMACSign(jwt.HS256, []byte(app.config.jwt.secret))
 	if err != nil {
@@ -179,7 +179,7 @@ func (app *application) createActivationTokenHandler(w http.ResponseWriter, r *h
 	claims.Issuer = "github.com/xtommas/food-backend"
 	claims.Audiences = []string{"github.com/xtommas/food-backend"}
 
-	claims.Set = map[string]interface{}{"scope": "activation"}
+	claims.Set = map[string]any{"scope": "activation"}
 
 	jwtBytes, err := claims.HMACSign(jwt.HS256, []byte(app.config.jwt.secret))
 	if err != nil {

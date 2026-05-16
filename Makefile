@@ -70,9 +70,10 @@ docker/migrate/up:
 ## docker/migrate/down: roll back all migrations on the containerised database
 .PHONY: docker/migrate/down
 docker/migrate/down:
+	$(eval include .env)
 	docker compose run --rm migrate \
 		-path /migrations \
-		-database "postgres://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@db:5432/$${POSTGRES_DB}?sslmode=disable" \
+		-database "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@db:5432/$(POSTGRES_DB)?sslmode=disable" \
 		down
 
 # ==================================================================================== #

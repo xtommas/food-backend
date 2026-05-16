@@ -108,7 +108,7 @@ func (m UserModel) Insert(user *User) error {
 		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, created_at, version`
 
-	args := []interface{}{user.Photo, user.Name, user.Email, user.Password.hash, user.Activated, user.Role}
+	args := []any{user.Photo, user.Name, user.Email, user.Password.hash, user.Activated, user.Role}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -214,7 +214,7 @@ func (m UserModel) Update(user *User) error {
 		WHERE id = $6 AND version = $7
 		RETURNING version`
 
-	args := []interface{}{
+	args := []any{
 		user.Photo,
 		user.Name,
 		user.Email,
@@ -256,7 +256,7 @@ func (m UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error)
 		AND tokens.expiry > $3`
 
 	// turn the tokenHash array into a slice with the : operator
-	args := []interface{}{tokenHash[:], tokenScope, time.Now()}
+	args := []any{tokenHash[:], tokenScope, time.Now()}
 
 	var user User
 
