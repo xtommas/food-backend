@@ -321,3 +321,26 @@ func (m RestaurantModel) IsStaff(restaurantID, userID int64) (bool, error) {
 	err := m.DB.QueryRowContext(ctx, query, restaurantID, userID).Scan(&exists)
 	return exists, err
 }
+
+func (m RestaurantModel) GetStaffRole(restaurantID, userID int64) (string, error) {
+	query := `
+		SELECT role
+		FROM restaurant_staff
+		WHERE restaurant_id = $1 AND user_id = $2`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	var role string
+	err := m.DB.QueryRowContext(ctx, query, restaurantID, userID).Scan(&role)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return "", ErrRecordNotFound
+		default:
+			return "", err
+		}
+	}
+
+	return role, nil
+}

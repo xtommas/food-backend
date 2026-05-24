@@ -34,7 +34,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		Photo:     "",
 		Email:     input.Email,
 		Activated: false,
-		Role:      input.Role,
+		Role:      "customer",
 	}
 
 	err = user.Password.Set(input.Password)
@@ -62,18 +62,10 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if user.Role == "restaurant" || user.Role == "admin" {
-		err = app.models.Permissions.AddForUser(user.Id, "dishes:read", "dishes:write")
-		if err != nil {
-			app.serverErrorResponse(w, r, err)
-			return
-		}
-	} else {
-		err = app.models.Permissions.AddForUser(user.Id, "dishes:read", "restaurant:read")
-		if err != nil {
-			app.serverErrorResponse(w, r, err)
-			return
-		}
+	err = app.models.Permissions.AddForUser(user.Id, "dishes:read", "restaurants:read")
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
 	}
 
 	var claims jwt.Claims
@@ -83,7 +75,6 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	claims.Expires = jwt.NewNumericTime(time.Now().Add(24 * time.Hour))
 	claims.Issuer = "github.com/xtommas/food-backend"
 	claims.Audiences = []string{"github.com/xtommas/food-backend"}
-
 	claims.Set = map[string]any{"scope": "activation"}
 
 	jwtBytes, err := claims.HMACSign(jwt.HS256, []byte(app.config.jwt.secret))
@@ -263,10 +254,9 @@ func (app *application) updateUserPasswordHandler(w http.ResponseWriter, r *http
 	}
 }
 
-func (app *application) updateUserRoleHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) promoteUserHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Email string `json:"email"`
-		Role  string `json:"role"`
 	}
 
 	err := app.readJSON(w, r, &input)
@@ -276,10 +266,7 @@ func (app *application) updateUserRoleHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	v := validator.New()
-
 	data.ValidateEmail(v, input.Email)
-	data.ValidateRole(v, input.Role)
-
 	if !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
@@ -289,7 +276,7 @@ func (app *application) updateUserRoleHandler(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
-			v.AddError("email", "invalid email")
+			v.AddError("email", "no user found with this email address")
 			app.failedValidationResponse(w, r, v.Errors)
 		default:
 			app.serverErrorResponse(w, r, err)
@@ -297,9 +284,7 @@ func (app *application) updateUserRoleHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	oldRole := user.Role
-
-	user.Role = input.Role
+	user.Role = "admin"
 
 	err = app.models.Users.Update(user)
 	if err != nil {
@@ -312,24 +297,13 @@ func (app *application) updateUserRoleHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if user.Role != "customer" {
-		err = app.models.Permissions.AddForUser(user.Id, "dishes:write")
-		if err != nil {
-			app.serverErrorResponse(w, r, err)
-			return
-		}
-	} else {
-		if oldRole != "customer" {
-			err = app.models.Permissions.DeleteForUser(user.Id, "dishes:write")
-			if err != nil {
-				app.serverErrorResponse(w, r, err)
-				return
-			}
-		}
+	err = app.models.Permissions.AddForUser(user.Id, "dishes:read", "dishes:write", "restaurants:read", "orders:read", "orders:write")
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
 	}
-	env := envelope{"message": "role successfully updated"}
 
-	err = app.writeJSON(w, http.StatusOK, env, nil)
+	err = app.writeJSON(w, http.StatusOK, envelope{"message": "user successfully promoted to admin"}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
@@ -339,19 +313,6 @@ func (app *application) getUserDataHandler(w http.ResponseWriter, r *http.Reques
 	user := app.contextGetUser(r)
 
 	err := app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-	}
-}
-
-func (app *application) listRestaurantsHandler(w http.ResponseWriter, r *http.Request) {
-	restaurants, err := app.models.Users.GetRestaurants()
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-
-	err = app.writeJSON(w, http.StatusOK, envelope{"restaurants": restaurants}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

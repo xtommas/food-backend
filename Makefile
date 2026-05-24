@@ -57,24 +57,33 @@ docker/psql:
 	docker compose exec db psql -U $${POSTGRES_USER} -d $${POSTGRES_DB}
 
 ## docker/migrate/new name=$1: create a new database migration
-.PHONY: docker/migrate/new
-docker/migrate/new:
+.PHONY: db/migrate/new
+db/migrate/new:
 	@echo 'Creating migration files for ${name}...'
 	migrate create --seq --ext=.sql --dir=./migrations ${name}
 
 ## docker/migrate/up: run migrations against the containerised database
-.PHONY: docker/migrate/up
-docker/migrate/up:
+.PHONY: db/migrate/up
+db/migrate/up:
 	docker compose run --rm migrate
 
 ## docker/migrate/down: roll back all migrations on the containerised database
-.PHONY: docker/migrate/down
-docker/migrate/down:
+.PHONY: db/migrate/down
+db/migrate/down:
 	$(eval include .env)
 	docker compose run --rm migrate \
 		-path /migrations \
 		-database "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@db:5432/$(POSTGRES_DB)?sslmode=disable" \
 		down
+
+## docker/db/schema: dump the database schema to schema.sql
+.PHONY: dump/db/schema
+dump/db/schema:
+			$(eval include .env)
+			docker compose exec db pg_dump \
+				--username=$(POSTGRES_USER) \
+				--schema-only \
+				$(POSTGRES_DB) > schema.sql
 
 # ==================================================================================== #
 # BUILD

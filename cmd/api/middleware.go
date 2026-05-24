@@ -208,15 +208,83 @@ func (app *application) requirePermission(code string, next http.HandlerFunc) ht
 		next.ServeHTTP(w, r)
 	}
 
-	// call the requireActivatedUser middleware, so we check if the user is activated, authenticated and has permission
 	return app.requireActivatedUser(fn)
 }
 
-func (app *application) requireRole(role string, next http.HandlerFunc) http.HandlerFunc {
+func (app *application) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		user := app.contextGetUser(r)
 
-		if user.Role != role {
+		if user.Role != "admin" {
+			app.notPermittedResponse(w, r)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	}
+
+	return app.requireActivatedUser(fn)
+}
+
+func (app *application) requireRestaurantStaff(next http.HandlerFunc) http.HandlerFunc {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		user := app.contextGetUser(r)
+
+		if user.Role == "admin" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		restaurantID, err := strconv.ParseInt(r.PathValue("restaurant_id"), 10, 64)
+		if err != nil || restaurantID < 1 {
+			app.notFoundResponse(w, r)
+			return
+		}
+
+		isStaff, err := app.models.Restaurants.IsStaff(restaurantID, user.Id)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+
+		if !isStaff {
+			app.notPermittedResponse(w, r)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	}
+
+	return app.requireActivatedUser(fn)
+}
+
+func (app *application) requireRestaurantOwner(next http.HandlerFunc) http.HandlerFunc {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		user := app.contextGetUser(r)
+
+		if user.Role == "admin" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		restaurantID, err := strconv.ParseInt(r.PathValue("restaurant_id"), 10, 64)
+		if err != nil || restaurantID < 1 {
+			app.notFoundResponse(w, r)
+			return
+		}
+
+		staffRole, err := app.models.Restaurants.GetStaffRole(restaurantID, user.Id)
+		if err != nil {
+			switch {
+			case errors.Is(err, data.ErrRecordNotFound):
+				app.notPermittedResponse(w, r)
+			default:
+				app.serverErrorResponse(w, r, err)
+			}
+			return
+		}
+
+		if staffRole != "owner" {
 			app.notPermittedResponse(w, r)
 			return
 		}
