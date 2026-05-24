@@ -32,6 +32,10 @@ func (u *User) IsAnonymous() bool {
 	return u == AnonymousUser
 }
 
+func (u *User) IsAdmin() bool {
+	return u.Role == "admin"
+}
+
 type password struct {
 	plaintext *string
 	hash      []byte
@@ -76,18 +80,11 @@ func ValidatePasswordPlaintext(v *validator.Validator, password string) {
 	v.Check(len(password) <= 72, "password", "must not be more than 72 bytes long")
 }
 
-func ValidateRole(v *validator.Validator, role string) {
-	v.Check(role != "", "role", "must be provided")
-	v.Check(role == "customer" || role == "restaurant", "role", "invalid role")
-}
-
 func ValidateUser(v *validator.Validator, user *User) {
 	v.Check(user.Name != "", "name", "must be provided")
 	v.Check(len(user.Name) <= 500, "name", "must be no more than 500 bytes long")
 
 	ValidateEmail(v, user.Email)
-
-	ValidateRole(v, user.Role)
 
 	if user.Password.plaintext != nil {
 		ValidatePasswordPlaintext(v, *user.Password.plaintext)
@@ -159,52 +156,6 @@ func (m UserModel) GetByEmail(email string) (*User, error) {
 	}
 
 	return &user, nil
-}
-
-func (m UserModel) GetRestaurants() ([]*User, error) {
-	query := `
-		SELECT id, photo, created_at, name, email, activated, version, role
-		FROM users
-		WHERE role = 'restaurant'`
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	rows, err := m.DB.QueryContext(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-
-	defer rows.Close()
-
-	users := []*User{}
-
-	for rows.Next() {
-		var user User
-
-		err := rows.Scan(
-			&user.Id,
-			&user.Photo,
-			&user.CreatedAt,
-			&user.Name,
-			&user.Email,
-			&user.Activated,
-			&user.Version,
-			&user.Role,
-		)
-
-		if err != nil {
-			return nil, err
-		}
-
-		users = append(users, &user)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return users, nil
 }
 
 func (m UserModel) Update(user *User) error {

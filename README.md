@@ -64,21 +64,22 @@ this will run the db, the migrations, and the app.
 
 ## 🔧 Makefile commands
 
-| Command                                         | Description                                                             |
-| ----------------------------------------------- | ----------------------------------------------------------------------- |
-| `make help`                                     | Print the help message with all available commands                      |
-| `make docker/up`                                | Build Docker images and start all services in detached mode             |
-| `make docker/up/attached`                       | Build Docker images and start all services while following logs         |
-| `make docker/down`                              | Stop all running services                                               |
-| `make docker/down/volumes`                      | Stop all services and remove Docker volumes (wipes DB data)             |
-| `make docker/nuke`                              | Stop services, remove volumes, images, and orphan containers            |
-| `make docker/logs`                              | Follow logs for all services                                            |
-| `make docker/logs/api`                          | Follow logs for the API service only                                    |
-| `make docker/psql`                              | Open a `psql` shell connected to the containerized PostgreSQL database  |
-| `make docker/migrate/new name=<migration_name>` | Create a new sequential SQL migration file                              |
-| `make docker/migrate/up`                        | Run database migrations against the containerized database              |
-| `make docker/migrate/down`                      | Roll back all database migrations                                       |
-| `make build/api`                                | Build the `cmd/api` application locally and generate Linux AMD64 binary |
+| Command | Description |
+|---|---|
+| `make help` | Print the help message with all available commands |
+| `make docker/up` | Build Docker images and start all services in detached mode |
+| `make docker/up/attached` | Build Docker images and start all services while following logs |
+| `make docker/down` | Stop all running services |
+| `make docker/down/volumes` | Stop all services and remove Docker volumes (wipes DB data) |
+| `make docker/nuke` | Stop services, remove volumes, images, and orphan containers |
+| `make docker/logs` | Follow logs for all services |
+| `make docker/logs/api` | Follow logs for the API service only |
+| `make docker/psql` | Open a `psql` shell connected to the containerized PostgreSQL database |
+| `make db/migrate/new name=<migration_name>` | Create a new sequential SQL migration file |
+| `make db/migrate/up` | Run database migrations against the containerized database |
+| `make db/migrate/down` | Roll back all database migrations |
+| `make db/schema` | Dump the current database schema to `schema.sql` |
+| `make build/api` | Build the `cmd/api` application locally and generate a Linux AMD64 binary |
 
 ## 🍕 Examples
 
