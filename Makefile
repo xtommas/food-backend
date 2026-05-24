@@ -76,6 +76,15 @@ docker/migrate/down:
 		-database "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@db:5432/$(POSTGRES_DB)?sslmode=disable" \
 		down
 
+## docker/db/schema: dump the database schema to schema.sql
+.PHONY: docker/db/schema
+docker/db/schema:
+			$(eval include .env)
+			docker compose exec db pg_dump \
+				--username=$(POSTGRES_USER) \
+				--schema-only \
+				$(POSTGRES_DB) > schema.sql
+
 # ==================================================================================== #
 # BUILD
 # ==================================================================================== #
