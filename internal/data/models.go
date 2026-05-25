@@ -11,13 +11,13 @@ var (
 )
 
 type Models struct {
-	Dishes      DishModel
-	Users       UserModel
-	Permissions PermissionModel
-	Tokens      TokenModel
-	Orders      OrderModel
-	OrderItems  OrderItemModel
-	Restaurants RestaurantModel
+	Dishes      DishModelInterface
+	Users       UserModelInterface
+	Permissions PermissionModelInterface
+	Tokens      TokenModelInterface
+	Orders      OrderModelInterface
+	OrderItems  OrderItemModelInterface
+	Restaurants RestaurantModelInterface
 }
 
 func NewModels(db *sql.DB) Models {

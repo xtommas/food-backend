@@ -85,6 +85,12 @@ dump/db/schema:
 				--schema-only \
 				$(POSTGRES_DB) > schema.sql
 
+## test: run unit tests
+.PHONY: test
+test:
+	docker compose up -d db_test migrate_test
+	go test ./... -v -count=1
+
 # ==================================================================================== #
 # BUILD
 # ==================================================================================== #
