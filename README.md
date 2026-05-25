@@ -80,6 +80,7 @@ this will run the db, the migrations, and the app.
 | `make db/migrate/down` | Roll back all database migrations |
 | `make db/schema` | Dump the current database schema to `schema.sql` |
 | `make build/api` | Build the `cmd/api` application locally and generate a Linux AMD64 binary |
+| `make test` | Run all tests |
 
 ## 🍕 Examples
 
