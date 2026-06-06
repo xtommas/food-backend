@@ -49,13 +49,10 @@ func (app *application) createOrderItemHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	subtotal := dish.Price * int64(input.Quantity)
-
 	order_item := &data.OrderItem{
 		OrderID:  order_id,
 		DishID:   input.Dish_id,
 		Quantity: input.Quantity,
-		Subtotal: subtotal,
 	}
 
 	v := validator.New()
@@ -88,11 +85,12 @@ func (app *application) createOrderItemHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	err = app.models.OrderItems.Insert(order_item)
+	insertedItem, err := app.models.OrderItems.InsertFromDish(order_id, dish, input.Quantity)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
+	order_item = insertedItem
 
 	order.Total += order_item.Subtotal
 
@@ -117,7 +115,7 @@ func (app *application) createOrderItemHandler(w http.ResponseWriter, r *http.Re
 }
 
 func (app *application) getOrderItemsHandler(w http.ResponseWriter, r *http.Request) {
-	restaurant_id, err := app.readIdParam(r, "restaurant_id")
+	restaurantID, err := app.readIdParam(r, "restaurant_id")
 	if err != nil {
 		app.notFoundResponse(w, r)
 		return
@@ -129,14 +127,7 @@ func (app *application) getOrderItemsHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	restaurant := app.contextGetUser(r)
-
-	if restaurant.Id != restaurant_id {
-		app.notPermittedResponse(w, r)
-		return
-	}
-
-	order, err := app.models.Orders.GetForRestaurant(order_id, restaurant_id)
+	order, err := app.models.Orders.GetForRestaurant(order_id, restaurantID)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):

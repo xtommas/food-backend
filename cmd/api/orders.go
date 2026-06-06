@@ -10,13 +10,13 @@ import (
 )
 
 func (app *application) createOrderHandler(w http.ResponseWriter, r *http.Request) {
-	restaurant_id, err := app.readIdParam(r, "restaurant_id")
+	restaurantID, err := app.readIdParam(r, "restaurant_id")
 	if err != nil {
 		app.notFoundResponse(w, r)
 		return
 	}
 
-	restaurant, err := app.models.Users.Get(restaurant_id)
+	_, err = app.models.Restaurants.Get(restaurantID)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -24,11 +24,6 @@ func (app *application) createOrderHandler(w http.ResponseWriter, r *http.Reques
 		default:
 			app.serverErrorResponse(w, r, err)
 		}
-		return
-	}
-
-	if restaurant.Role != "restaurant" {
-		app.notFoundResponse(w, r)
 		return
 	}
 
@@ -46,10 +41,10 @@ func (app *application) createOrderHandler(w http.ResponseWriter, r *http.Reques
 
 	order := &data.Order{
 		UserID:       user.Id,
-		RestaurantID: restaurant_id,
+		RestaurantID: restaurantID,
 		Total:        0,
 		Address:      input.Address,
-		Status:       "created",
+		Status:       "pending",
 	}
 
 	v := validator.New()
@@ -75,7 +70,7 @@ func (app *application) createOrderHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (app *application) getOrdersForRestaurantHandler(w http.ResponseWriter, r *http.Request) {
-	restaurant_id, err := app.readIdParam(r, "restaurant_id")
+	restaurantID, err := app.readIdParam(r, "restaurant_id")
 	if err != nil {
 		app.notFoundResponse(w, r)
 		return
@@ -104,13 +99,7 @@ func (app *application) getOrdersForRestaurantHandler(w http.ResponseWriter, r *
 		return
 	}
 
-	user := app.contextGetUser(r)
-	if user.Id != restaurant_id {
-		app.notFoundResponse(w, r)
-		return
-	}
-
-	orders, metadata, err := app.models.Orders.GetAllForRestaurant(restaurant_id, input.Status, input.Filters)
+	orders, metadata, err := app.models.Orders.GetAllForRestaurant(restaurantID, input.Status, input.Filters)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -241,25 +230,19 @@ func (app *application) getOrdersForUserHandler(w http.ResponseWriter, r *http.R
 }
 
 func (app *application) getSingleOrderForRestaurantHandler(w http.ResponseWriter, r *http.Request) {
-	restaurant_id, err := app.readIdParam(r, "restaurant_id")
+	restaurantID, err := app.readIdParam(r, "restaurant_id")
 	if err != nil {
 		app.notFoundResponse(w, r)
 		return
 	}
 
-	user := app.contextGetUser(r)
-	if user.Id != restaurant_id {
-		app.notFoundResponse(w, r)
-		return
-	}
-
-	order_id, err := app.readIdParam(r, "order_id")
+	orderID, err := app.readIdParam(r, "order_id")
 	if err != nil {
 		app.notFoundResponse(w, r)
 		return
 	}
 
-	order, err := app.models.Orders.GetForRestaurant(order_id, restaurant_id)
+	order, err := app.models.Orders.GetForRestaurant(orderID, restaurantID)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -374,26 +357,19 @@ func (app *application) getSingleOrderForUserHandler(w http.ResponseWriter, r *h
 }
 
 func (app *application) updateOrderHandler(w http.ResponseWriter, r *http.Request) {
-	restaurant_id, err := app.readIdParam(r, "restaurant_id")
+	restaurantID, err := app.readIdParam(r, "restaurant_id")
 	if err != nil {
 		app.notFoundResponse(w, r)
 		return
 	}
 
-	order_id, err := app.readIdParam(r, "order_id")
+	orderID, err := app.readIdParam(r, "order_id")
 	if err != nil {
 		app.notFoundResponse(w, r)
 		return
 	}
 
-	restaurant := app.contextGetUser(r)
-
-	if restaurant.Id != restaurant_id {
-		app.notPermittedResponse(w, r)
-		return
-	}
-
-	order, err := app.models.Orders.GetForRestaurant(order_id, restaurant_id)
+	order, err := app.models.Orders.GetForRestaurant(orderID, restaurantID)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -415,6 +391,13 @@ func (app *application) updateOrderHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	if input.Status != nil {
+		v := validator.New()
+		data.ValidateStatusTransition(v, order.Status, *input.Status)
+		if !v.Valid() {
+			app.failedValidationResponse(w, r, v.Errors)
+			return
+		}
+
 		order.Status = *input.Status
 	}
 
