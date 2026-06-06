@@ -1,32 +1,95 @@
-include .envrc
+# ==================================================================================== #
+# HELPERS
+# ==================================================================================== #
 
-## run/api: run the cmd/api application
-.PHONY: run/api
-run/api:
-	go run ./cmd/api -db-dsn=${DB_DSN} -jwt-secret=${JWT_SECRET}
+## help: print this help message
+.PHONY: help
+help:
+	@echo 'Usage:'
+	@if command -v column >/dev/null 2>&1; then \
+		sed -n 's/^##//p' ${MAKEFILE_LIST} | column -t -s ':' | sed -e 's/^/ /'; \
+	else \
+		sed -n 's/^##//p' ${MAKEFILE_LIST} | sed -e 's/^/ /'; \
+	fi
 
-## db/psql: connect to the database using psql
-.PHONY: db/psql
-db/psql:
-	psql ${DB_DSN}
+# ==================================================================================== #
+# DOCKER
+# ==================================================================================== #
 
-## db/migrations/new name=$1: create a new database migration
-.PHONY: db/migrations/new
-db/migrations/new:
+## docker/up: build images and start all services (detached)
+.PHONY: docker/up
+docker/up:
+	docker compose up --build -d
+
+## docker/up/attached: build images and start all services (follow logs)
+.PHONY: docker/up/attached
+docker/up/attached:
+	docker compose up --build
+
+## docker/down: stop all services
+.PHONY: docker/down
+docker/down:
+	docker compose down
+
+## docker/down/volumes: stop all services AND delete volumes (wipes DB data)
+.PHONY: docker/down/volumes
+docker/down/volumes:
+	docker compose down --volumes
+
+## docker/nuke: stop all services, delete volumes, images and orphan containers
+.PHONY: docker/nuke
+docker/nuke:
+	docker compose down --volumes --rmi all --remove-orphans
+
+## docker/logs: follow logs for all services
+.PHONY: docker/logs
+docker/logs:
+	docker compose logs -f
+
+## docker/logs/api: follow logs for the api service only
+.PHONY: docker/logs/api
+docker/logs/api:
+	docker compose logs -f api
+
+## docker/psql: connect to the containerised database using psql
+.PHONY: docker/psql
+docker/psql:
+	docker compose exec db psql -U $${POSTGRES_USER} -d $${POSTGRES_DB}
+
+## docker/migrate/new name=$1: create a new database migration
+.PHONY: db/migrate/new
+db/migrate/new:
 	@echo 'Creating migration files for ${name}...'
 	migrate create --seq --ext=.sql --dir=./migrations ${name}
 
-## db/migrations/up: apply all up database migrations
-.PHONY: db/migrations/up
-db/migrations/up:
-	@echo 'Running up migrations...'
-	migrate --path ./migrations --database ${DB_DSN} up
+## docker/migrate/up: run migrations against the containerised database
+.PHONY: db/migrate/up
+db/migrate/up:
+	docker compose run --rm migrate
 
-## db/migrations/up: apply all up down database migrations
-.PHONY: db/migrations/down
-db/migrations/down:
-	@echo 'Running down migrations...'
-	migrate --path ./migrations --database ${DB_DSN} down
+## docker/migrate/down: roll back all migrations on the containerised database
+.PHONY: db/migrate/down
+db/migrate/down:
+	$(eval include .env)
+	docker compose run --rm migrate \
+		-path /migrations \
+		-database "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@db:5432/$(POSTGRES_DB)?sslmode=disable" \
+		down
+
+## docker/db/schema: dump the database schema to schema.sql
+.PHONY: dump/db/schema
+dump/db/schema:
+			$(eval include .env)
+			docker compose exec db pg_dump \
+				--username=$(POSTGRES_USER) \
+				--schema-only \
+				$(POSTGRES_DB) > schema.sql
+
+## test: run unit tests
+.PHONY: test
+test:
+	docker compose up -d db_test migrate_test
+	go test ./... -v -count=1
 
 # ==================================================================================== #
 # BUILD
@@ -36,8 +99,7 @@ current_time = $(shell date --iso-8601=seconds)
 git_description = $(shell git describe --always --dirty --tags --long)
 linker_flags = '-s -X main.buildTime=${current_time} -X main.version=${git_description}'
 
-
-## build/api: build the cmd/api application
+## build/api: build the cmd/api application locally
 .PHONY: build/api
 build/api:
 	@echo 'Building cmd/api...'

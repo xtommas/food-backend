@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"time"
 
 	"github.com/lib/pq"
@@ -11,13 +12,7 @@ import (
 type Permissions []string
 
 func (p Permissions) Include(code string) bool {
-	for i := range p {
-		if code == p[i] {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(p, code)
 }
 
 type PermissionModel struct {

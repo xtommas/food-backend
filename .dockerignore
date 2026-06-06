@@ -1,0 +1,24 @@
+# Version control
+.git
+.gitignore
+
+# Build output (rebuilt inside Docker)
+bin/
+
+# Environment files (secrets must not be baked into the image)
+.envrc
+.env
+*.env
+
+# Editor / OS noise
+.idea/
+.vscode/
+*.DS_Store
+
+# Docker files themselves
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Docs
+README.md

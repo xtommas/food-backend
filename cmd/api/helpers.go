@@ -6,22 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
 
-	"github.com/julienschmidt/httprouter"
 	"github.com/xtommas/food-backend/internal/validator"
 )
 
-type envelope map[string]interface{}
+type envelope map[string]any
 
 func (app *application) readIdParam(r *http.Request, param string) (int64, error) {
-	params := httprouter.ParamsFromContext(r.Context())
-
-	id, err := strconv.ParseInt(params.ByName(param), 10, 64)
+	id, err := strconv.ParseInt(r.PathValue(param), 10, 64)
 	if err != nil || id < 1 {
 		return 0, errors.New("invalid id parameter")
 	}
@@ -39,9 +37,7 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data envelo
 	js = append(js, '\n')
 
 	// Add any headers to the ResponseWriter
-	for key, value := range headers {
-		w.Header()[key] = value
-	}
+	maps.Copy(w.Header(), headers)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -50,7 +46,7 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data envelo
 	return nil
 }
 
-func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst interface{}) error {
+func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	// limit the size of the request body to 1MB
 	maxBytes := 1_048_576
 	r.Body = http.MaxBytesReader(w, r.Body, int64(maxBytes))

@@ -2,6 +2,7 @@ package data
 
 import (
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/xtommas/food-backend/internal/validator"
@@ -23,10 +24,8 @@ type Metadata struct {
 }
 
 func (f Filters) sortColumn() string {
-	for _, safeValue := range f.SortSafelist {
-		if f.Sort == safeValue {
-			return strings.TrimPrefix(f.Sort, "-")
-		}
+	if slices.Contains(f.SortSafelist, f.Sort) {
+		return strings.TrimPrefix(f.Sort, "-")
 	}
 
 	panic("unsafe sort parameter: " + f.Sort)

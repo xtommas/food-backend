@@ -44,16 +44,16 @@ func (app *application) createOrderItemHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if dish.Restaurant_id != restaurant_id {
+	if dish.RestaurantID != restaurant_id {
 		app.notFoundResponse(w, r)
 		return
 	}
 
-	subtotal := dish.Price * data.Price(input.Quantity)
+	subtotal := dish.Price * int64(input.Quantity)
 
 	order_item := &data.OrderItem{
-		Order_id: order_id,
-		Dish_id:  input.Dish_id,
+		OrderID:  order_id,
+		DishID:   input.Dish_id,
 		Quantity: input.Quantity,
 		Subtotal: subtotal,
 	}
@@ -83,7 +83,7 @@ func (app *application) createOrderItemHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if order.Restaurant_id != restaurant_id {
+	if order.RestaurantID != restaurant_id {
 		app.badRequestResponse(w, r, errors.New("invalid restaurant"))
 		return
 	}
@@ -108,7 +108,7 @@ func (app *application) createOrderItemHandler(w http.ResponseWriter, r *http.Re
 	}
 
 	headers := make(http.Header)
-	headers.Set("Location", fmt.Sprintf("/restaurant/%d/orders/orders/%d/items/%d", restaurant_id, order_id, order_item.Id))
+	headers.Set("Location", fmt.Sprintf("/restaurant/%d/orders/orders/%d/items/%d", restaurant_id, order_id, order_item.ID))
 
 	err = app.writeJSON(w, http.StatusCreated, envelope{"order_item": order_item}, headers)
 	if err != nil {
@@ -147,22 +147,22 @@ func (app *application) getOrderItemsHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	items, err := app.models.OrderItems.GetForOrder(order.Id)
+	items, err := app.models.OrderItems.GetForOrder(order.ID)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
 	type order_item struct {
-		Name     string     `json:"dish"`
-		Quantity int        `json:"quantity"`
-		Subtotal data.Price `json:"subtotal"`
+		Name     string `json:"dish"`
+		Quantity int    `json:"quantity"`
+		Subtotal int64  `json:"subtotal"`
 	}
 
 	order_items := []order_item{}
 
 	for _, item := range items {
-		dish, err := app.models.Dishes.Get(item.Dish_id)
+		dish, err := app.models.Dishes.Get(item.DishID)
 		if err != nil {
 			switch {
 			case errors.Is(err, data.ErrRecordNotFound):
@@ -202,22 +202,22 @@ func (app *application) getUserOrderItemsHandler(w http.ResponseWriter, r *http.
 		return
 	}
 
-	items, err := app.models.OrderItems.GetForOrder(order.Id)
+	items, err := app.models.OrderItems.GetForOrder(order.ID)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
 	type order_item struct {
-		Name     string     `json:"dish"`
-		Quantity int        `json:"quantity"`
-		Subtotal data.Price `json:"subtotal"`
+		Name     string `json:"dish"`
+		Quantity int    `json:"quantity"`
+		Subtotal int64  `json:"subtotal"`
 	}
 
 	order_items := []order_item{}
 
 	for _, item := range items {
-		dish, err := app.models.Dishes.Get(item.Dish_id)
+		dish, err := app.models.Dishes.Get(item.DishID)
 		if err != nil {
 			switch {
 			case errors.Is(err, data.ErrRecordNotFound):
