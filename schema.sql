@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict hbrbTLgkdHQkn1irlZ75aDDpKP877SAHmaxpotkzd3VG4ldPSILh85nfz0bioVc
+\restrict H2HaMyFJnmrJzGZ7zQ0u7L1Ru53XQNYMUuJfvkl55UvfreaO9FRcX1C00wnWca9
 
 -- Dumped from database version 17.10
 -- Dumped by pg_dump version 17.10
@@ -68,7 +68,8 @@ CREATE TABLE public.dishes (
     available boolean DEFAULT true NOT NULL,
     updated_at timestamp(0) with time zone DEFAULT now() NOT NULL,
     CONSTRAINT categories_length_check CHECK (((array_length(categories, 1) >= 1) AND (array_length(categories, 1) <= 5))),
-    CONSTRAINT dishes_price_check CHECK (((price)::double precision >= (0)::double precision))
+    CONSTRAINT dishes_name_check CHECK ((name <> ''::text)),
+    CONSTRAINT dishes_price_check CHECK ((price > 0))
 );
 
 
@@ -275,6 +276,20 @@ CREATE TABLE public.schema_migrations (
 ALTER TABLE public.schema_migrations OWNER TO dockerfood;
 
 --
+-- Name: tokens; Type: TABLE; Schema: public; Owner: dockerfood
+--
+
+CREATE TABLE public.tokens (
+    hash bytea NOT NULL,
+    user_id bigint NOT NULL,
+    expiry timestamp(0) with time zone NOT NULL,
+    scope text NOT NULL
+);
+
+
+ALTER TABLE public.tokens OWNER TO dockerfood;
+
+--
 -- Name: users; Type: TABLE; Schema: public; Owner: dockerfood
 --
 
@@ -287,7 +302,8 @@ CREATE TABLE public.users (
     password_hash bytea NOT NULL,
     activated boolean NOT NULL,
     version integer DEFAULT 1 NOT NULL,
-    role text NOT NULL
+    role text NOT NULL,
+    CONSTRAINT users_role_check CHECK ((role = ANY (ARRAY['customer'::text, 'admin'::text])))
 );
 
 
@@ -425,6 +441,14 @@ ALTER TABLE ONLY public.schema_migrations
 
 
 --
+-- Name: tokens tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: dockerfood
+--
+
+ALTER TABLE ONLY public.tokens
+    ADD CONSTRAINT tokens_pkey PRIMARY KEY (hash);
+
+
+--
 -- Name: users users_email_key; Type: CONSTRAINT; Schema: public; Owner: dockerfood
 --
 
@@ -498,6 +522,13 @@ CREATE INDEX orders_user_id_idx ON public.orders USING btree (user_id);
 
 
 --
+-- Name: tokens_user_id_scope_idx; Type: INDEX; Schema: public; Owner: dockerfood
+--
+
+CREATE INDEX tokens_user_id_scope_idx ON public.tokens USING btree (user_id, scope);
+
+
+--
 -- Name: dishes dishes_set_updated_at; Type: TRIGGER; Schema: public; Owner: dockerfood
 --
 
@@ -568,6 +599,14 @@ ALTER TABLE ONLY public.restaurant_staff
 
 
 --
+-- Name: tokens tokens_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dockerfood
+--
+
+ALTER TABLE ONLY public.tokens
+    ADD CONSTRAINT tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: users_permissions users_permissions_permission_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dockerfood
 --
 
@@ -587,5 +626,5 @@ ALTER TABLE ONLY public.users_permissions
 -- PostgreSQL database dump complete
 --
 
-\unrestrict hbrbTLgkdHQkn1irlZ75aDDpKP877SAHmaxpotkzd3VG4ldPSILh85nfz0bioVc
+\unrestrict H2HaMyFJnmrJzGZ7zQ0u7L1Ru53XQNYMUuJfvkl55UvfreaO9FRcX1C00wnWca9
 
