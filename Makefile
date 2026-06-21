@@ -91,6 +91,22 @@ test:
 	docker compose up -d db_test migrate_test
 	go test ./... -v -count=1
 
+## docker/rabbitmq/queues: list queues with message and consumer counts
+.PHONY: docker/rabbitmq/queues
+docker/rabbitmq/queues:
+		docker compose exec rabbitmq rabbitmqctl list_queues name messages consumers
+
+## docker/rabbitmq/ui: print the rabbitmq management UI url and credentials reminder
+.PHONY: docker/rabbitmq/ui
+docker/rabbitmq/ui:
+		@echo 'RabbitMQ management UI: http://localhost:15672'
+		@echo 'Login with RABBITMQ_USER / RABBITMQ_PASSWORD from your .env'
+
+## db/seed: run the seed script against the containerised database
+.PHONY: db/seed
+db/seed:
+			docker compose run --rm seed
+
 # ==================================================================================== #
 # BUILD
 # ==================================================================================== #

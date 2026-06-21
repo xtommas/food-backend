@@ -13,3 +13,5 @@ require golang.org/x/crypto v0.51.0
 require github.com/felixge/httpsnoop v1.0.4
 
 require github.com/pascaldekloe/jwt v1.12.0
+
+require github.com/rabbitmq/amqp091-go v1.12.0

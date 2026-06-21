@@ -3,10 +3,11 @@
 
 ![Go](https://img.shields.io/badge/go-%2300ADD8.svg?style=for-the-badge&logo=go&logoColor=white)
 ![Postgres](https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white)
+![RabbitMQ](https://img.shields.io/badge/rabbitmq-%23FF6600.svg?style=for-the-badge&logo=rabbitmq&logoColor=white)
 ![JWT](https://img.shields.io/badge/JWT-black?style=for-the-badge&logo=JSON%20web%20tokens)
 ![Postman](https://img.shields.io/badge/Postman-FF6C37?style=for-the-badge&logo=postman&logoColor=white)
 
-<p align="left">Backend for a food delivery application, where admins manage restaurants, restaurant staff manage dishes and orders, and customers place orders.</p>
+<p align="left">Backend for a food delivery application, where admins manage restaurants, restaurant staff manage dishes and orders, and customers place orders. Order lifecycle events are published to RabbitMQ for asynchronous processing.</p>
 
 </div>
 
@@ -64,7 +65,7 @@ Prices and totals are stored and returned as integer cents. For example, `1299` 
 
 You'll need to have [Docker](https://www.docker.com/) installed.
 
-First, create a new `.env` file following `.env.example`.
+First, create a new `.env` file following `.env.example`. This now also needs `RABBITMQ_USER` and `RABBITMQ_PASSWORD`.
 
 Then, run the app with:
 
@@ -72,7 +73,56 @@ Then, run the app with:
 make docker/up
 ```
 
-This starts the database, runs migrations, and starts the API on `http://localhost:4000`.
+This starts the database, runs migrations, seeds the database with sample data (first run only — see [Seed data](#-seed-data)), starts RabbitMQ, starts the API on `http://localhost:4000`, and starts the `notifier` consumer that listens for order events.
+
+## 🌱 Seed data
+
+The `seed` service runs automatically on `make docker/up` and populates the database with working accounts and a stocked restaurant, so there's no manual setup before you can start testing. It checks whether a restaurant already exists and skips seeding if so, making it safe to re-run.
+
+| Email | Password | Notes |
+|---|---|---|
+| admin@example.com | password123 | `admin` role |
+| owner@example.com | password123 | Owner of "Trattoria Roma" |
+| staff@example.com | password123 | Staff at "Trattoria Roma" |
+| customer@example.com | password123 | Regular customer |
+
+It also creates a restaurant, **Trattoria Roma**, with three dishes: Margherita Pizza, Spaghetti Carbonara, and Tiramisu.
+
+To re-run the seed manually at any point:
+
+```bash
+make db/seed
+```
+
+## 📨 Async events (RabbitMQ)
+
+Order creation and status changes are published as events to an `orders` topic exchange in RabbitMQ, separate from the synchronous API response. This decouples side effects — notifying a kitchen, notifying a customer — from the request/response cycle, and the order is still persisted even if a publish fails.
+
+| Routing key | Published when | Payload |
+|---|---|---|
+| `order.created` | A customer creates a new order | order id, user id, restaurant id, address, status, created_at |
+| `order.status_changed` | Restaurant staff update an order's status | order id, restaurant id, user id, from_status, to_status, changed_at |
+
+A standalone consumer service, `notifier` (`cmd/notifier`), subscribes to both routing keys and logs what a real kitchen/customer-notification system would act on. It runs as its own container alongside the API.
+
+> Adding items to an order (`POST .../orders/:order_id/items`) doesn't currently publish an event — only order creation and status updates do.
+
+### Inspecting the queue
+
+- Management UI: `make docker/rabbitmq/ui` prints the URL and a reminder of where the credentials live.
+- Command line: `make docker/rabbitmq/queues` lists queues with message and consumer counts.
+
+### Testing it manually
+
+1. Log in as one of the [seeded accounts](#-seed-data) via `POST /tokens/authentication`.
+2. Create an order, or update an existing order's status.
+3. Watch the consumer logs:
+
+```bash
+docker compose logs -f notifier
+```
+
+You should see a `[kitchen]` line after creating an order, and a `[customer]` line after a status update.
 
 ## 🔧 Makefile commands
 
@@ -87,28 +137,25 @@ This starts the database, runs migrations, and starts the API on `http://localho
 | `make docker/logs` | Follow logs for all services |
 | `make docker/logs/api` | Follow logs for the API service only |
 | `make docker/psql` | Open a `psql` shell connected to the containerized PostgreSQL database |
+| `make docker/rabbitmq/queues` | List RabbitMQ queues with message and consumer counts |
+| `make docker/rabbitmq/ui` | Print the RabbitMQ management UI URL and a credentials reminder |
 | `make db/migrate/new name=<migration_name>` | Create a new sequential SQL migration file |
 | `make db/migrate/up` | Run database migrations against the containerized database |
 | `make db/migrate/down` | Roll back all database migrations |
 | `make db/schema` | Dump the current database schema to `schema.sql` |
+| `make db/seed` | Re-run the database seed script manually |
 | `make build/api` | Build the `cmd/api` application locally and generate a Linux AMD64 binary |
 | `make test` | Start the test DB and run all tests |
 
 ## 🍕 Examples
 
-Set the base URL once:
-
-```bash
-BASE_URL=http://localhost:4000
-```
-
-For protected examples, replace `$CUSTOMER_TOKEN`, `$ADMIN_TOKEN`, or `$STAFF_TOKEN` with a token returned by `POST /tokens/authentication`.
+For protected examples, replace `$CUSTOMER_TOKEN`, `$ADMIN_TOKEN`, or `$STAFF_TOKEN` with a token returned by `POST /tokens/authentication` — or use one of the [seeded accounts](#-seed-data) directly.
 
 ### Register a customer
 
 ```bash
 curl --request POST \
-  --url "$BASE_URL/users" \
+  --url "http://localhost:4000/users" \
   --header 'Content-Type: application/json' \
   --data '{
     "name": "Tomas",
@@ -135,7 +182,7 @@ curl --request POST \
 
 ```bash
 curl --request PUT \
-  --url "$BASE_URL/users/activate" \
+  --url "http://localhost:4000/users/activate" \
   --header 'Content-Type: application/json' \
   --data '{
     "token": "<activation-jwt>"
@@ -144,7 +191,7 @@ curl --request PUT \
 
 ```bash
 curl --request POST \
-  --url "$BASE_URL/tokens/authentication" \
+  --url "http://localhost:4000/tokens/authentication" \
   --header 'Content-Type: application/json' \
   --data '{
     "email": "tomas@example.com",
@@ -164,7 +211,7 @@ Restaurants are no longer user accounts. An admin creates the restaurant record.
 
 ```bash
 curl --request POST \
-  --url "$BASE_URL/restaurants" \
+  --url "http://localhost:4000/restaurants" \
   --header "Authorization: Bearer $ADMIN_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{
@@ -202,7 +249,7 @@ An admin or restaurant owner can add staff. Use `owner` for the first manager of
 
 ```bash
 curl --request POST \
-  --url "$BASE_URL/restaurants/7/staff" \
+  --url "http://localhost:4000/restaurants/7/staff" \
   --header "Authorization: Bearer $ADMIN_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{
@@ -221,7 +268,7 @@ curl --request POST \
 
 ```bash
 curl --request GET \
-  --url "$BASE_URL/restaurants" \
+  --url "http://localhost:4000/restaurants" \
   --header "Authorization: Bearer $CUSTOMER_TOKEN"
 ```
 
@@ -250,7 +297,7 @@ Prices are integer cents. This example creates a `$12.99` dish.
 
 ```bash
 curl --request POST \
-  --url "$BASE_URL/restaurants/7/dishes" \
+  --url "http://localhost:4000/restaurants/7/dishes" \
   --header "Authorization: Bearer $STAFF_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{
@@ -280,7 +327,7 @@ curl --request POST \
 
 ```bash
 curl --request GET \
-  --url "$BASE_URL/restaurants/7/dishes?available=true&categories=pizza&sort=price" \
+  --url "http://localhost:4000/restaurants/7/dishes?available=true&categories=pizza&sort=price" \
   --header "Authorization: Bearer $CUSTOMER_TOKEN"
 ```
 
@@ -312,18 +359,18 @@ curl --request GET \
 
 ```bash
 curl --request POST \
-  --url "$BASE_URL/restaurants/7/dishes/5/photo/" \
+  --url "http://localhost:4000/restaurants/7/dishes/5/photo/" \
   --header "Authorization: Bearer $STAFF_TOKEN" \
   --form 'photo=@/path/to/neapolitan-pizza.jpg'
 ```
 
 ### Create an order
 
-New orders start as `pending`.
+New orders start as `pending`. This also publishes an `order.created` event — see [Async events](#-async-events-rabbitmq).
 
 ```bash
 curl --request POST \
-  --url "$BASE_URL/restaurants/7/orders" \
+  --url "http://localhost:4000/restaurants/7/orders" \
   --header "Authorization: Bearer $CUSTOMER_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{
@@ -352,7 +399,7 @@ Order items snapshot the dish name and price at the time the item is added.
 
 ```bash
 curl --request POST \
-  --url "$BASE_URL/restaurants/7/orders/11/items" \
+  --url "http://localhost:4000/restaurants/7/orders/11/items" \
   --header "Authorization: Bearer $CUSTOMER_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{
@@ -379,7 +426,7 @@ curl --request POST \
 
 ```bash
 curl --request GET \
-  --url "$BASE_URL/users/me/orders?status=pending&sort=-id" \
+  --url "http://localhost:4000/users/me/orders?status=pending&sort=-id" \
   --header "Authorization: Bearer $CUSTOMER_TOKEN"
 ```
 
@@ -422,11 +469,11 @@ Restaurant staff can move orders through these transitions:
 
 `pending -> confirmed -> preparing -> ready -> delivered`
 
-Staff can also cancel `pending` or `confirmed` orders.
+Staff can also cancel `pending` or `confirmed` orders. This also publishes an `order.status_changed` event — see [Async events](#-async-events-rabbitmq).
 
 ```bash
 curl --request PATCH \
-  --url "$BASE_URL/restaurants/7/orders/11" \
+  --url "http://localhost:4000/restaurants/7/orders/11" \
   --header "Authorization: Bearer $STAFF_TOKEN" \
   --header 'Content-Type: application/json' \
   --data '{
@@ -453,7 +500,7 @@ curl --request PATCH \
 
 ```bash
 curl --request GET \
-  --url "$BASE_URL/users/me" \
+  --url "http://localhost:4000/users/me" \
   --header "Authorization: Bearer $CUSTOMER_TOKEN"
 ```
 
