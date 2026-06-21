@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/xtommas/food-backend/internal/data"
 	"github.com/xtommas/food-backend/internal/validator"
@@ -58,6 +59,21 @@ func (app *application) createOrderHandler(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
+	}
+
+	err = app.mq.Publish("order.created", orderCreatedEvent{
+		OrderID:      order.ID,
+		UserID:       order.UserID,
+		RestaurantID: order.RestaurantID,
+		Address:      order.Address,
+		Status:       order.Status,
+		CreatedAt:    order.CreatedAt,
+	})
+	if err != nil {
+		app.logger.PrintError(err, map[string]string{
+			"event":    "order.created",
+			"order_id": fmt.Sprintf("%d", order.ID),
+		})
 	}
 
 	headers := make(http.Header)
@@ -390,6 +406,8 @@ func (app *application) updateOrderHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	var fromStatus string
+
 	if input.Status != nil {
 		v := validator.New()
 		data.ValidateStatusTransition(v, order.Status, *input.Status)
@@ -397,7 +415,7 @@ func (app *application) updateOrderHandler(w http.ResponseWriter, r *http.Reques
 			app.failedValidationResponse(w, r, v.Errors)
 			return
 		}
-
+		fromStatus = order.Status
 		order.Status = *input.Status
 	}
 
@@ -417,6 +435,23 @@ func (app *application) updateOrderHandler(w http.ResponseWriter, r *http.Reques
 			app.serverErrorResponse(w, r, err)
 		}
 		return
+	}
+
+	if input.Status != nil {
+		err = app.mq.Publish("order.status_changed", orderStatusChangedEvent{
+			OrderID:      order.ID,
+			RestaurantID: order.RestaurantID,
+			UserID:       order.UserID,
+			FromStatus:   fromStatus,
+			ToStatus:     order.Status,
+			ChangedAt:    time.Now(),
+		})
+		if err != nil {
+			app.logger.PrintError(err, map[string]string{
+				"event":    "order.status_changed",
+				"order_id": fmt.Sprintf("%d", order.ID),
+			})
+		}
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"order": order}, nil)
