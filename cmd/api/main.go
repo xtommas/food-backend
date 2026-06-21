@@ -13,6 +13,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/xtommas/food-backend/internal/data"
 	"github.com/xtommas/food-backend/internal/jsonlog"
+	"github.com/xtommas/food-backend/internal/mq"
 )
 
 var (
@@ -40,6 +41,9 @@ type config struct {
 	jwt struct {
 		secret string
 	}
+	rabbitmq struct {
+		url string
+	}
 }
 
 type application struct {
@@ -47,6 +51,7 @@ type application struct {
 	logger *jsonlog.Logger
 	models data.Models
 	wg     sync.WaitGroup
+	mq     *mq.Publisher
 }
 
 func main() {
@@ -77,6 +82,9 @@ func main() {
 	// JWT
 	cfg.jwt.secret = requireEnv("JWT_SECRET", logger)
 
+	// RabbitMQ
+	cfg.rabbitmq.url = requireEnv("RABBITMQ_URL", logger)
+
 	// version
 	if os.Getenv("VERSION") == "true" {
 		fmt.Printf("Version:\t%s\n", version)
@@ -91,10 +99,18 @@ func main() {
 	defer db.Close()
 	logger.PrintInfo("database connection pool established", nil)
 
+	publisher, err := mq.NewPublisher(cfg.rabbitmq.url)
+	if err != nil {
+		logger.PrintFatal(err, nil)
+	}
+	defer publisher.Close()
+	logger.PrintInfo("rabbitmq connection established", nil)
+
 	app := &application{
 		config: cfg,
 		logger: logger,
 		models: data.NewModels(db),
+		mq:     publisher,
 	}
 
 	err = app.serve()
