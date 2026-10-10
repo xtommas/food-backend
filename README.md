@@ -96,14 +96,18 @@ make db/seed
 
 ## 📨 Async events (RabbitMQ)
 
-Order creation and status changes are published as events to an `orders` topic exchange in RabbitMQ, separate from the synchronous API response. This decouples side effects — notifying a kitchen, notifying a customer — from the request/response cycle, and the order is still persisted even if a publish fails.
+Order creation and status changes are written to a PostgreSQL transactional outbox in the same transaction as the order change. A background relay publishes those rows to the `orders` topic exchange, separate from the synchronous API response. This means an accepted order change cannot lose its event just because RabbitMQ is temporarily unavailable, and the API can start while RabbitMQ is down.
 
 | Routing key | Published when | Payload |
 |---|---|---|
 | `order.created` | A customer creates a new order | order id, user id, restaurant id, address, status, created_at |
 | `order.status_changed` | Restaurant staff update an order's status | order id, restaurant id, user id, from_status, to_status, changed_at |
 
-A standalone consumer service, `notifier` (`cmd/notifier`), subscribes to both routing keys and logs what a real kitchen/customer-notification system would act on. It runs as its own container alongside the API.
+A standalone consumer service, `notifier` (`cmd/notifier`), subscribes to both routing keys and logs what a real kitchen/customer-notification system would act on. It uses a bounded prefetch and sends malformed messages to `notifier.orders.dlq` instead of repeatedly redelivering them.
+
+Delivery is **at least once**. RabbitMQ publisher confirms and mandatory publishing prevent the relay from marking an event delivered until the broker accepts it for a bound queue. A process failure after the broker accepts a message but before PostgreSQL records that success can produce a duplicate, so real consumers should use the AMQP message id as an idempotency key.
+
+The notifier queue now has dead-letter settings. For an existing RabbitMQ deployment, drain and redeclare `notifier.orders` before deploying this change, because RabbitMQ does not allow queue arguments to be changed in place.
 
 > Adding items to an order (`POST .../orders/:order_id/items`) doesn't currently publish an event — only order creation and status updates do.
 
@@ -459,6 +463,38 @@ curl --request GET \
     "first_page": 1,
     "last_page": 1,
     "total_records": 1
+  }
+}
+```
+
+### Get one customer order
+
+```bash
+curl --request GET \
+  --url "http://localhost:4000/users/me/orders/11" \
+  --header "Authorization: Bearer $CUSTOMER_TOKEN"
+```
+
+```json
+{
+  "order": {
+    "order": {
+      "id": 11,
+      "user_id": 8,
+      "restaurant_id": 7,
+      "total": 2598,
+      "address": "Apartment 5D",
+      "created_at": "2026-06-06T12:20:00Z",
+      "updated_at": "2026-06-06T12:22:00Z",
+      "status": "pending"
+    },
+    "items": [
+      {
+        "dish": "Neapolitan Pizza",
+        "quantity": 2,
+        "subtotal": 2598
+      }
+    ]
   }
 }
 ```
