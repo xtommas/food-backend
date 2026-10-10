@@ -59,6 +59,10 @@ type OrderModel struct {
 	DB *sql.DB
 }
 
+// EventPayload is built after an order write has assigned its database timestamps
+// and before the surrounding transaction is committed.
+type EventPayload func() ([]byte, error)
+
 func (o OrderModel) Insert(order *Order) error {
 	query := `
 		INSERT INTO orders (user_id, restaurant_id, total, address, status)
@@ -71,6 +75,36 @@ func (o OrderModel) Insert(order *Order) error {
 	defer cancel()
 
 	return o.DB.QueryRowContext(ctx, query, args...).Scan(&order.ID, &order.CreatedAt, &order.UpdatedAt)
+}
+
+func (o OrderModel) InsertWithEvent(order *Order, routingKey string, payload EventPayload) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	tx, err := o.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := `
+		INSERT INTO orders (user_id, restaurant_id, total, address, status)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, created_at, updated_at`
+	if err := tx.QueryRowContext(ctx, query, order.UserID, order.RestaurantID, order.Total, order.Address, order.Status).
+		Scan(&order.ID, &order.CreatedAt, &order.UpdatedAt); err != nil {
+		return err
+	}
+
+	body, err := payload()
+	if err != nil {
+		return fmt.Errorf("building order event: %w", err)
+	}
+	if err := insertOutboxEvent(ctx, tx, routingKey, body); err != nil {
+		return fmt.Errorf("enqueueing order event: %w", err)
+	}
+
+	return tx.Commit()
 }
 
 func (o OrderModel) GetForRestaurant(id int64, restaurantID int64) (*Order, error) {
@@ -168,6 +202,39 @@ func (o OrderModel) Update(order *Order) error {
 	}
 
 	return nil
+}
+
+func (o OrderModel) UpdateWithEvent(order *Order, routingKey string, payload EventPayload) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	tx, err := o.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := `
+		UPDATE orders
+		SET total = $1, status = $2
+		WHERE id = $3
+		RETURNING updated_at`
+	if err := tx.QueryRowContext(ctx, query, order.Total, order.Status, order.ID).Scan(&order.UpdatedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrRecordNotFound
+		}
+		return err
+	}
+
+	body, err := payload()
+	if err != nil {
+		return fmt.Errorf("building order event: %w", err)
+	}
+	if err := insertOutboxEvent(ctx, tx, routingKey, body); err != nil {
+		return fmt.Errorf("enqueueing order event: %w", err)
+	}
+
+	return tx.Commit()
 }
 
 func (o OrderModel) GetAllForRestaurant(restaurantID int64, status string, filters Filters) ([]*Order, Metadata, error) {

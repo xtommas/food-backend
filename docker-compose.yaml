@@ -102,12 +102,13 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      rabbitmq:
-        condition: service_healthy
     environment:
       DB_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
       JWT_SECRET: ${JWT_SECRET}
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
+      LIMITER_RPS: ${LIMITER_RPS:-10}
+      LIMITER_BURST: ${LIMITER_BURST:-20}
+      LIMITER_ENABLED: ${LIMITER_ENABLED:-true}
     ports:
       - "4000:4000"
     volumes:

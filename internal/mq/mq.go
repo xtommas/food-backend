@@ -2,8 +2,8 @@ package mq
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -12,68 +12,128 @@ import (
 const ExchangeName = "orders"
 
 type Publisher struct {
-	conn *amqp.Connection
-	ch   *amqp.Channel
+	url string
+
+	mu       sync.Mutex
+	conn     *amqp.Connection
+	ch       *amqp.Channel
+	confirms <-chan amqp.Confirmation
+	returns  <-chan amqp.Return
 }
 
-func NewPublisher(url string) (*Publisher, error) {
-	conn, err := amqp.Dial(url)
+func NewPublisher(url string) *Publisher {
+	return &Publisher{url: url}
+}
+
+func (p *Publisher) connect() error {
+	if p.conn != nil && p.ch != nil {
+		return nil
+	}
+
+	conn, err := amqp.Dial(p.url)
 	if err != nil {
-		return nil, fmt.Errorf("connecting to rabbitmq: %w", err)
+		return fmt.Errorf("connecting to rabbitmq: %w", err)
 	}
 
 	ch, err := conn.Channel()
 	if err != nil {
 		conn.Close()
-		return nil, fmt.Errorf("opening channel: %w", err)
+		return fmt.Errorf("opening channel: %w", err)
 	}
 
-	err = ch.ExchangeDeclare(
-		ExchangeName,
-		"topic",
-		true,  // durable
-		false, // auto-deleted
-		false, // internal
-		false, // no-wait
-		nil,
-	)
-	if err != nil {
+	if err := ch.ExchangeDeclare(ExchangeName, "topic", true, false, false, false, nil); err != nil {
 		ch.Close()
 		conn.Close()
-		return nil, fmt.Errorf("declaring exchange: %w", err)
+		return fmt.Errorf("declaring exchange: %w", err)
+	}
+	if err := ch.Confirm(false); err != nil {
+		ch.Close()
+		conn.Close()
+		return fmt.Errorf("enabling publisher confirms: %w", err)
 	}
 
-	return &Publisher{conn: conn, ch: ch}, nil
+	p.conn = conn
+	p.ch = ch
+	p.confirms = ch.NotifyPublish(make(chan amqp.Confirmation, 1))
+	p.returns = ch.NotifyReturn(make(chan amqp.Return, 1))
+	return nil
+}
+
+func (p *Publisher) disconnect() {
+	if p.ch != nil {
+		_ = p.ch.Close()
+		p.ch = nil
+		p.confirms = nil
+		p.returns = nil
+	}
+	if p.conn != nil {
+		_ = p.conn.Close()
+		p.conn = nil
+	}
 }
 
 func (p *Publisher) Close() error {
-	if err := p.ch.Close(); err != nil {
-		return err
-	}
-	return p.conn.Close()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.disconnect()
+	return nil
 }
 
-// Publish marshals v to JSON and publishes it to the orders exchange
-// under routingKey, e.g. "order.created" or "order.status_changed".
-func (p *Publisher) Publish(routingKey string, v any) error {
-	body, err := json.Marshal(v)
-	if err != nil {
-		return fmt.Errorf("marshalling message: %w", err)
+// Publish waits for the broker's publisher confirmation. Calls are serialized
+// because confirms belong to an AMQP channel rather than an individual request.
+func (p *Publisher) Publish(ctx context.Context, routingKey string, body []byte, messageID string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if err := p.connect(); err != nil {
+		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
+	select {
+	case <-p.confirms:
+	default:
+	}
+	select {
+	case <-p.returns:
+	default:
+	}
 
-	return p.ch.PublishWithContext(ctx,
+	err := p.ch.PublishWithContext(ctx,
 		ExchangeName,
 		routingKey,
-		false, // mandatory
-		false, // immediate
+		true,
+		false,
 		amqp.Publishing{
 			ContentType:  "application/json",
 			DeliveryMode: amqp.Persistent,
-			Timestamp:    time.Now(),
+			Timestamp:    time.Now().UTC(),
+			MessageId:    messageID,
 			Body:         body,
 		},
 	)
+	if err != nil {
+		p.disconnect()
+		return fmt.Errorf("publishing message: %w", err)
+	}
+
+	select {
+	case confirmation, ok := <-p.confirms:
+		if !ok || !confirmation.Ack {
+			p.disconnect()
+			return fmt.Errorf("broker did not confirm message")
+		}
+		select {
+		case returned, ok := <-p.returns:
+			if !ok {
+				p.disconnect()
+				return fmt.Errorf("broker return channel closed")
+			}
+			return fmt.Errorf("message was unroutable: %s", returned.ReplyText)
+		default:
+		}
+		return nil
+	case <-ctx.Done():
+		p.disconnect()
+		return ctx.Err()
+	}
 }

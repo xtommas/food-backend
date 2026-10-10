@@ -12,6 +12,10 @@ import (
 )
 
 func (app *application) serve() error {
+	backgroundCtx, cancelBackground := context.WithCancel(context.Background())
+	defer cancelBackground()
+	app.startOutboxRelay(backgroundCtx)
+
 	// declare HTTP server
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", app.config.port),
@@ -46,6 +50,7 @@ func (app *application) serve() error {
 		if err != nil {
 			shutdownError <- err
 		}
+		cancelBackground()
 
 		app.logger.PrintInfo("completing background tasks", map[string]string{
 			"addr": srv.Addr,

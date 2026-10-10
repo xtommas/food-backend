@@ -10,6 +10,11 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+const (
+	ordersExchange = "orders"
+	dlxExchange    = "orders.dlx"
+)
+
 func main() {
 	url := os.Getenv("RABBITMQ_URL")
 	if url == "" {
@@ -28,17 +33,32 @@ func main() {
 	}
 	defer ch.Close()
 
-	if err := ch.ExchangeDeclare("orders", "topic", true, false, false, false, nil); err != nil {
+	if err := ch.ExchangeDeclare(ordersExchange, "topic", true, false, false, false, nil); err != nil {
 		log.Fatalf("declaring exchange: %v", err)
 	}
+	if err := ch.ExchangeDeclare(dlxExchange, "topic", true, false, false, false, nil); err != nil {
+		log.Fatalf("declaring dead-letter exchange: %v", err)
+	}
 
-	q, err := ch.QueueDeclare("notifier.orders", true, false, false, false, nil)
+	q, err := ch.QueueDeclare("notifier.orders", true, false, false, false, amqp.Table{
+		"x-dead-letter-exchange": dlxExchange,
+	})
 	if err != nil {
 		log.Fatalf("declaring queue: %v", err)
 	}
+	dlq, err := ch.QueueDeclare("notifier.orders.dlq", true, false, false, false, nil)
+	if err != nil {
+		log.Fatalf("declaring dead-letter queue: %v", err)
+	}
 
-	if err := ch.QueueBind(q.Name, "order.*", "orders", false, nil); err != nil {
+	if err := ch.QueueBind(q.Name, "order.*", ordersExchange, false, nil); err != nil {
 		log.Fatalf("binding queue: %v", err)
+	}
+	if err := ch.QueueBind(dlq.Name, "#", dlxExchange, false, nil); err != nil {
+		log.Fatalf("binding dead-letter queue: %v", err)
+	}
+	if err := ch.Qos(10, 0, false); err != nil {
+		log.Fatalf("configuring consumer prefetch: %v", err)
 	}
 
 	msgs, err := ch.Consume(q.Name, "", false, false, false, false, nil)
@@ -55,6 +75,7 @@ func main() {
 		for d := range msgs {
 			handleMessage(d)
 		}
+		log.Fatal("rabbitmq delivery channel closed")
 	}()
 
 	<-stop
@@ -74,8 +95,8 @@ func handleMessage(d amqp.Delivery) {
 			d.Nack(false, false)
 			return
 		}
-		log.Printf("[kitchen] new order #%d for restaurant %d -> deliver to %q",
-			evt.OrderID, evt.RestaurantID, evt.Address)
+		log.Printf("[kitchen] event=%s new order #%d for restaurant %d -> deliver to %q",
+			d.MessageId, evt.OrderID, evt.RestaurantID, evt.Address)
 
 	case "order.status_changed":
 		var evt struct {
@@ -89,8 +110,8 @@ func handleMessage(d amqp.Delivery) {
 			d.Nack(false, false)
 			return
 		}
-		log.Printf("[customer] order #%d for user %d: %s -> %s",
-			evt.OrderID, evt.UserID, evt.FromStatus, evt.ToStatus)
+		log.Printf("[customer] event=%s order #%d for user %d: %s -> %s",
+			d.MessageId, evt.OrderID, evt.UserID, evt.FromStatus, evt.ToStatus)
 
 	default:
 		log.Printf("unhandled routing key: %s", d.RoutingKey)

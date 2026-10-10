@@ -18,6 +18,7 @@ type Models struct {
 	Orders      OrderModelInterface
 	OrderItems  OrderItemModelInterface
 	Restaurants RestaurantModelInterface
+	Outbox      OutboxModelInterface
 }
 
 func NewModels(db *sql.DB) Models {
@@ -29,5 +30,6 @@ func NewModels(db *sql.DB) Models {
 		Orders:      OrderModel{DB: db},
 		OrderItems:  OrderItemModel{DB: db},
 		Restaurants: RestaurantModel{DB: db},
+		Outbox:      OutboxModel{DB: db},
 	}
 }
