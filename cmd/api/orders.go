@@ -1,10 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/xtommas/food-backend/internal/data"
 	"github.com/xtommas/food-backend/internal/validator"
@@ -55,25 +55,19 @@ func (app *application) createOrderHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err = app.models.Orders.Insert(order)
+	err = app.models.Orders.InsertWithEvent(order, "order.created", func() ([]byte, error) {
+		return json.Marshal(orderCreatedEvent{
+			OrderID:      order.ID,
+			UserID:       order.UserID,
+			RestaurantID: order.RestaurantID,
+			Address:      order.Address,
+			Status:       order.Status,
+			CreatedAt:    order.CreatedAt,
+		})
+	})
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
-	}
-
-	err = app.mq.Publish("order.created", orderCreatedEvent{
-		OrderID:      order.ID,
-		UserID:       order.UserID,
-		RestaurantID: order.RestaurantID,
-		Address:      order.Address,
-		Status:       order.Status,
-		CreatedAt:    order.CreatedAt,
-	})
-	if err != nil {
-		app.logger.PrintError(err, map[string]string{
-			"event":    "order.created",
-			"order_id": fmt.Sprintf("%d", order.ID),
-		})
 	}
 
 	headers := make(http.Header)
@@ -426,7 +420,20 @@ func (app *application) updateOrderHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err = app.models.Orders.Update(order)
+	if input.Status != nil {
+		err = app.models.Orders.UpdateWithEvent(order, "order.status_changed", func() ([]byte, error) {
+			return json.Marshal(orderStatusChangedEvent{
+				OrderID:      order.ID,
+				RestaurantID: order.RestaurantID,
+				UserID:       order.UserID,
+				FromStatus:   fromStatus,
+				ToStatus:     order.Status,
+				ChangedAt:    order.UpdatedAt,
+			})
+		})
+	} else {
+		err = app.models.Orders.Update(order)
+	}
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrEditConflict):
@@ -435,23 +442,6 @@ func (app *application) updateOrderHandler(w http.ResponseWriter, r *http.Reques
 			app.serverErrorResponse(w, r, err)
 		}
 		return
-	}
-
-	if input.Status != nil {
-		err = app.mq.Publish("order.status_changed", orderStatusChangedEvent{
-			OrderID:      order.ID,
-			RestaurantID: order.RestaurantID,
-			UserID:       order.UserID,
-			FromStatus:   fromStatus,
-			ToStatus:     order.Status,
-			ChangedAt:    time.Now(),
-		})
-		if err != nil {
-			app.logger.PrintError(err, map[string]string{
-				"event":    "order.status_changed",
-				"order_id": fmt.Sprintf("%d", order.ID),
-			})
-		}
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"order": order}, nil)

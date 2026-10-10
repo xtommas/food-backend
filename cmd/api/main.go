@@ -70,8 +70,8 @@ func main() {
 	cfg.db.maxIdleTime = getEnv("DB_MAX_IDLE_TIME", "15m")
 
 	// rate limiter
-	cfg.limiter.rps = getEnvFloat("LIMITER_RPS", 2, logger)
-	cfg.limiter.burst = getEnvInt("LIMITER_BURST", 4, logger)
+	cfg.limiter.rps = getEnvFloat("LIMITER_RPS", 10, logger)
+	cfg.limiter.burst = getEnvInt("LIMITER_BURST", 20, logger)
 	cfg.limiter.enabled = getEnvBool("LIMITER_ENABLED", true, logger)
 
 	// CORS
@@ -82,8 +82,9 @@ func main() {
 	// JWT
 	cfg.jwt.secret = requireEnv("JWT_SECRET", logger)
 
-	// RabbitMQ
-	cfg.rabbitmq.url = requireEnv("RABBITMQ_URL", logger)
+	// RabbitMQ is optional for request handling. The outbox relay will retry
+	// delivery when it becomes available.
+	cfg.rabbitmq.url = getEnv("RABBITMQ_URL", "")
 
 	// version
 	if os.Getenv("VERSION") == "true" {
@@ -99,12 +100,8 @@ func main() {
 	defer db.Close()
 	logger.PrintInfo("database connection pool established", nil)
 
-	publisher, err := mq.NewPublisher(cfg.rabbitmq.url)
-	if err != nil {
-		logger.PrintFatal(err, nil)
-	}
+	publisher := mq.NewPublisher(cfg.rabbitmq.url)
 	defer publisher.Close()
-	logger.PrintInfo("rabbitmq connection established", nil)
 
 	app := &application{
 		config: cfg,

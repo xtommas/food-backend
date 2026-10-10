@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"database/sql"
 	"time"
 )
@@ -23,11 +24,17 @@ type OrderItemModelInterface interface {
 
 type OrderModelInterface interface {
 	Insert(order *Order) error
+	InsertWithEvent(order *Order, routingKey string, payload EventPayload) error
 	GetForRestaurant(id int64, restaurantID int64) (*Order, error)
 	GetForUser(id int64, userID int64) (*Order, error)
 	Update(order *Order) error
+	UpdateWithEvent(order *Order, routingKey string, payload EventPayload) error
 	GetAllForRestaurant(restaurantID int64, status string, filters Filters) ([]*Order, Metadata, error)
 	GetAllForUser(userID int64, status string, filters Filters) ([]*Order, Metadata, error)
+}
+
+type OutboxModelInterface interface {
+	PublishNext(ctx context.Context, publish OutboxPublisher) (bool, error)
 }
 
 type PermissionModelInterface interface {
